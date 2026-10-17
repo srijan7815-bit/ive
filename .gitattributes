@@ -4,3 +4,5 @@
 *.icns binary
 *.dmg binary
 *.zip binary
+*.bat text eol=crlf
+android/gradle/wrapper/gradle-wrapper.jar binary

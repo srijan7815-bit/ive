@@ -4,10 +4,10 @@
 
 # IVE
 
-**A living notch for macOS.** Hold `fn`, drag, think out loud — the AI works in the background while you keep working.
+**A living notch for macOS, Windows and Android.** Hold `fn`, drag, think out loud — the AI works in the background while you keep working.
 
 [![Live demo](https://img.shields.io/badge/live_demo-srijan7815--bit.github.io%2Five-9ef2cf)](https://srijan7815-bit.github.io/ive/)
-[![Platform](https://img.shields.io/badge/platform-macOS%2013%2B-black)]()
+[![Platform](https://img.shields.io/badge/platform-macOS%2013%2B%20%C2%B7%20Windows%2010%2B%20%C2%B7%20Android%2010%2B-black)]()
 [![Built with](https://img.shields.io/badge/Electron-Swift-8fb4ff)]()
 [![License](https://img.shields.io/badge/license-MIT-black)](LICENSE)
 
@@ -71,7 +71,28 @@ On first launch:
 
 The `fn` helper is optional: without it, `⌘⇧Space` opens the composer at your cursor.
 
-> Packages: `npm run dist` builds a signed-ready `.dmg` + `.zip` via electron-builder (arm64 + x64). CI does this for you on every tag — see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#release).
+> Packages: `npm run dist:mac` builds a `.dmg` + `.zip` (arm64 + x64), `npm run dist:win` builds the NSIS installers, and `cd android && ./gradlew assembleRelease` builds the APK. CI does all three on every tag — see **[docs/RELEASING.md](docs/RELEASING.md)**.
+
+---
+
+## Three platforms, one notch
+
+| | macOS | Windows | Android |
+| --- | --- | --- | --- |
+| **Summon** | hold `fn` + right-drag | `Ctrl`+`Alt` + right-drag | long-press the pill |
+| **Notch** | menu-bar island, per-display | 660×760 top overlay | floating pill, draw-over-apps |
+| **Music** | Apple Music + Spotify | system media sessions | any `MediaSession` app |
+| **Reach** | full machine (files, shell, apps, screen) | full machine (files, shell, apps, screen) | fenced files + apps + media |
+| **Install** | `.dmg` | `.exe` (NSIS, per-user) | `.apk` / `.aab` |
+
+The desktop builds share one renderer and one agent loop; the platform layer
+(`src/main/platform/`) supplies the gestures, window geometry, media and
+automation primitives. The Android app is a native Kotlin/Compose rewrite of the
+same design language — see **[docs/ANDROID.md](docs/ANDROID.md)**.
+
+Windows and Android are new surfaces: the code, the signing story and the CI
+that ships them are all in this repo, but they have seen far less use than the
+macOS build. Bug reports welcome.
 
 ---
 
@@ -113,7 +134,9 @@ The `fn` helper is optional: without it, `⌘⇧Space` opens the composer at you
 ## Tests
 
 ```bash
-npm test
+npm test                      # desktop: agent, providers, safety, module load
+npm run test:demo             # browser: full UI interaction suite
+cd android && ./gradlew test  # (Android unit tests land with the next release)
 ```
 
 Headless suites for the safety fences, both provider adapters (against local mock servers), the full agent loop including the permission round-trip, and module-load integrity.
@@ -122,6 +145,8 @@ Headless suites for the safety fences, both provider adapters (against local moc
 
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — process model, event flow, gesture protocol, motion system
 - [docs/PERMISSIONS.md](docs/PERMISSIONS.md) — every macOS permission, why, and how to reset it
+- [docs/RELEASING.md](docs/RELEASING.md) — signing, notarizing, store uploads, rollback
+- [docs/ANDROID.md](docs/ANDROID.md) — the Android app: overlay, tools, permissions, build
 - [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ## Safety

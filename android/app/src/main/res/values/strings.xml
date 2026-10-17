@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">IVE</string>
+    <string name="notif_access_label">IVE — media &amp; notifications</string>
+    <string name="notch_channel">IVE notch</string>
+    <string name="notch_channel_desc">Keeps the IVE notch alive while you work.</string>
+    <string name="notch_running">IVE is running</string>
+    <string name="notch_running_body">The notch is on top. Tap to open the panel.</string>
+</resources>
