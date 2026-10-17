@@ -2,7 +2,9 @@
 """Generate IVE's icons: tray template + 1024px app icon (+ .icns on macOS)."""
 from PIL import Image, ImageDraw, ImageFilter
 import math
+import io
 import os
+import struct
 import subprocess
 import sys
 
@@ -136,6 +138,31 @@ def tray_template(size=16):
     return img.resize((size, size), Image.LANCZOS)
 
 
+ICNS_TYPES = [
+    ("ic07", 128),   # 128x128
+    ("ic08", 256),   # 256x256
+    ("ic09", 512),   # 512x512
+    ("ic10", 1024),  # 1024 (512@2x)
+    ("ic11", 32),    # 16@2x
+    ("ic12", 64),    # 32@2x
+    ("ic13", 256),   # 128@2x
+    ("ic14", 512),   # 256@2x
+]
+
+
+def write_icns(icon, path):
+    """Minimal .icns writer: 8-byte header + typed PNG chunks."""
+    chunks = []
+    for tag, size in ICNS_TYPES:
+        buf = io.BytesIO()
+        icon.resize((size, size), Image.LANCZOS).save(buf, format="PNG")
+        payload = buf.getvalue()
+        chunks.append(tag.encode("ascii") + struct.pack(">I", len(payload) + 8) + payload)
+    body = b"".join(chunks)
+    with open(path, "wb") as f:
+        f.write(b"icns" + struct.pack(">I", len(body) + 8) + body)
+
+
 def main():
     icon = app_icon(1024)
     icon.save(os.path.join(BUILD, "icon.png"))
@@ -152,6 +179,23 @@ def main():
     icon.resize((512, 512), Image.LANCZOS).save(os.path.join(ASSETS, "icon-512.png"))
     print("✓ assets/icon-512.png")
 
+    # Windows: multi-size .ico (installer, shortcuts, taskbar)
+    icon.save(os.path.join(BUILD, "icon.ico"), sizes=[(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)])
+    print("✓ build/icon.ico")
+
+    # Windows tray must read well at 16px on both light and dark taskbars,
+    # so it uses the mint mark on transparent, not a template image.
+    tray_rgba = Image.new("RGBA", (32, 32), (0, 0, 0, 0))
+    mark = tray_template(32)
+    tint = Image.new("RGBA", (32, 32), (158, 242, 207, 255))
+    tray_rgba.paste(tint, (0, 0), mark)
+    tray_rgba.save(os.path.join(ASSETS, "tray-win.png"))
+    print("✓ assets/tray-win.png")
+
+    # macOS: write a real .icns on any platform (PNG-payload ICNS, 10.7+).
+    write_icns(icon, os.path.join(BUILD, "icon.icns"))
+    print("✓ build/icon.icns")
+
     if sys.platform == "darwin":
         iconset = os.path.join(BUILD, "icon.iconset")
         os.makedirs(iconset, exist_ok=True)
@@ -159,7 +203,6 @@ def main():
             icon.resize((s, s), Image.LANCZOS).save(os.path.join(iconset, f"icon_{s}x{s}.png"))
             icon.resize((s * 2, s * 2), Image.LANCZOS).save(os.path.join(iconset, f"icon_{s}x{s}@2x.png"))
         subprocess.run(["iconutil", "-c", "icns", iconset, "-o", os.path.join(BUILD, "icon.icns")], check=True)
-        print("✓ build/icon.icns")
 
 
 if __name__ == "__main__":

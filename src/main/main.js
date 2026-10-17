@@ -1,9 +1,8 @@
 'use strict';
 /**
- * IVE — main process.
+ * IVE — main process (macOS + Windows).
  *
- * The whole app is a quiet loop:
- *   fn + right-drag  →  glass composer  →  agent works in the background
+ *   gesture  →  glass composer  →  agent works in the background
  *   agent needs you  →  the notch grows  →  you answer  →  it shrinks away
  */
 const { app, BrowserWindow, ipcMain, screen, shell, Notification, globalShortcut, Tray, Menu, nativeImage, systemPreferences } = require('electron');
@@ -12,13 +11,16 @@ const fs = require('fs');
 const os = require('os');
 const crypto = require('crypto');
 
+const { logger } = require('./logger');
 const config = require('./config');
+const platform = require('./platform');
 const { Windows } = require('./windows');
-const { FnBridge } = require('./fn-bridge');
+const { GestureBridge } = require('./gesture-bridge');
 const { Music } = require('./music');
+const { Updates } = require('./updates');
 const { Agent } = require('./ai/agent');
 const { testConnection, PRESETS } = require('./ai/providers');
-const { runAppleScript, runShell } = require('./shell');
+const { runShell } = require('./shell');
 
 let Store;
 try { Store = require('electron-store'); } catch { Store = null; }
@@ -26,36 +28,52 @@ try { Store = require('electron-store'); } catch { Store = null; }
 const ROOT = path.join(__dirname, '..', '..');
 const DEV = process.env.IVE_DEV === '1';
 const MOCK_AI = process.env.IVE_DEMO === '1';
+const IS_MAC = process.platform === 'darwin';
 
 app.setName('IVE');
 if (process.platform === 'win32') app.setAppUserModelId('ai.ive.app');
 
-const gotLock = app.requestSingleInstanceLock();
-if (!gotLock) {
+if (!app.requestSingleInstanceLock()) {
   app.quit();
 }
 
+/* ---------------------------- crash safety ------------------------------ */
+
+process.on('uncaughtException', (e) => {
+  logger.error('uncaughtException', e);
+});
+process.on('unhandledRejection', (e) => {
+  logger.error('unhandledRejection', e);
+});
+
 /* ------------------------------- stores --------------------------------- */
 
-let logStore;
-if (Store) {
-  logStore = new Store({ name: 'ive-log', defaults: { entries: [], chat: [] } });
-  var historyStore = new Store({ name: 'ive-history', defaults: { messages: [] } });
-} else {
-  logStore = memoryStore();
-  var historyStore = memoryStore();
+function memoryStore(seed) {
+  const data = { entries: [], messages: [], chat: [], ...(seed || {}) };
+  return {
+    get: (k, d) => (data[k] === undefined ? d : data[k]),
+    set: (k, v) => { data[k] = v; },
+    store: data
+  };
 }
-function memoryStore() {
-  const data = { entries: [], messages: [], chat: [] };
-  return { get: (k, d) => (data[k] === undefined ? d : data[k]), set: (k, v) => { data[k] = v; }, store: data };
+
+let logStore;
+let historyStore;
+try {
+  logStore = Store ? new Store({ name: 'ive-log', defaults: { entries: [] } }) : memoryStore();
+  historyStore = Store ? new Store({ name: 'ive-history', defaults: { messages: [] } }) : memoryStore();
+} catch (e) {
+  logger.warn('electron-store unavailable, using memory store', e.message);
+  logStore = memoryStore();
+  historyStore = memoryStore();
 }
 
 /* ------------------------------- state ---------------------------------- */
 
 const S = {
-  gesture: null,          // active fn+right drag
-  overlay: null,          // display id currently showing composer
-  pending: new Map(),     // permission requests awaiting an answer
+  gesture: null,
+  overlay: null,
+  pending: new Map(),
   lastExternalApp: null,
   fnDown: false,
   helper: { ok: false, reason: 'starting…' },
@@ -65,6 +83,9 @@ const S = {
   bootedAt: Date.now()
 };
 
+logger.setDir(path.join(app.getPath('userData'), 'logs'));
+logger.info(`IVE ${app.getVersion()} boot · ${process.platform}/${process.arch} · electron ${process.versions.electron}`);
+
 /* ------------------------------ windows --------------------------------- */
 
 const windows = new Windows({
@@ -73,33 +94,28 @@ const windows = new Windows({
   dev: DEV
 });
 
-/* ------------------------------- music ---------------------------------- */
-
 const music = new Music();
+const updates = new Updates({ enabled: config.get('autoUpdate') !== false });
 
 /* ------------------------------ helpers --------------------------------- */
 
-const isOurApp = (name) => /^(ive|electron)$/i.test(String(name || '').trim());
+const isOurApp = (name) => /^(ive|electron|ive\.exe|electron\.exe)$/i.test(String(name || '').trim());
 
 async function frontmostApp() {
-  if (process.platform !== 'darwin') return null;
-  const r = await runAppleScript('tell application "System Events" to get name of first application process whose frontmost is true');
-  return r.ok ? r.stdout.trim() : null;
+  try { return await platform.activeApp(); } catch { return null; }
 }
 
 async function rememberExternalApp() {
-  try {
-    const name = await frontmostApp();
-    if (name && !isOurApp(name)) S.lastExternalApp = name;
-  } catch { /* ignore */ }
+  const name = await frontmostApp();
+  if (name && !isOurApp(name)) S.lastExternalApp = name;
 }
 
 async function restoreFocus() {
-  if (process.platform !== 'darwin') return;
   const target = S.lastExternalApp;
   if (!target || isOurApp(target)) return;
-  const r = await runAppleScript(`tell application "System Events" to set frontmost of process "${target.replace(/"/g, '\\"')}" to true`);
-  if (!r.ok) await runShell(`open -a '${target.replace(/'/g, `'\\''`)}'`);
+  try {
+    await platform.openApp(target, 'activate');
+  } catch { /* best effort */ }
 }
 
 function notchSend(channel, payload) {
@@ -112,13 +128,9 @@ function logEntry(entry) {
     const entries = logStore.get('entries', []);
     entries.push(e);
     logStore.set('entries', entries.slice(-120));
-  } catch {}
+  } catch { /* ignore */ }
   notchSend('agent:log', e);
   return e;
-}
-
-function status() {
-  notchSend('agent:status', { state: S.agentBusy ? 'working' : 'idle' });
 }
 
 /* --------------------------- permission desk ---------------------------- */
@@ -145,9 +157,7 @@ function requestChoice(payload) {
       ],
       meta: payload.meta || null
     });
-    if (config.get('sound')) {
-      runShell('afplay /System/Library/Sounds/Tink.aiff', { timeout: 4000 }).catch(() => {});
-    }
+    if (config.get('sound')) runShell('afplay /System/Library/Sounds/Tink.aiff', { timeout: 4000 }).catch(() => {});
   });
 }
 
@@ -176,16 +186,14 @@ const agent = new Agent({
   requestChoice,
   notify,
   getSystemSummary,
-  musicState: () => music.lastState ? music.lastState : null
+  musicState: () => music.lastState
 });
 
 agent.on('status', (s) => {
   S.agentBusy = s.state === 'working';
   notchSend('agent:status', s);
 });
-agent.on('log', (entry) => {
-  logEntry(entry);
-});
+agent.on('log', (entry) => logEntry(entry));
 agent.on('done', (d) => {
   S.agentBusy = false;
   notchSend('agent:done', d);
@@ -197,21 +205,23 @@ function notify(title, body) {
   try {
     if (!Notification.isSupported()) return;
     new Notification({ title, body, silent: !config.get('sound') }).show();
-  } catch {}
+  } catch { /* ignore */ }
 }
 
 async function getSystemSummary() {
-  const displays = screen.getAllDisplays().map((d) => ({ id: d.id, size: `${d.size.width}x${d.size.height}`, scale: d.scaleFactor, primary: d.id === screen.getPrimaryDisplay().id }));
+  const displays = screen.getAllDisplays().map((d) => ({
+    id: d.id, size: `${d.size.width}x${d.size.height}`, scale: d.scaleFactor,
+    primary: d.id === screen.getPrimaryDisplay().id
+  }));
+  const info = await platform.systemInfo();
   return {
-    os: `macOS ${os.release()} (${process.platform})`,
-    hostname: os.hostname(),
-    user: os.userInfo().username,
-    home: os.homedir(),
+    ...info,
     date: new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }),
     time: new Date().toLocaleTimeString('en-US'),
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
     activeApp: await frontmostApp(),
-    displays
+    displays,
+    capabilities: platform.capabilities
   };
 }
 
@@ -219,17 +229,16 @@ async function getSystemSummary() {
 
 async function captureGlass(display) {
   if (config.get('glassScreenshot') === false) return null;
-  if (process.platform !== 'darwin') return null;
   try {
-    const tmp = path.join(os.tmpdir(), `ive-glass-${Date.now()}.png`);
-    const out = tmp.replace(/\.png$/, '.jpg');
-    const b = display.bounds;
-    const r = await runShell(`screencapture -x -R${b.x},${b.y},${b.width},${b.height} ${JSON.stringify(tmp)}`, { timeout: 5000 });
-    if (!r.ok) return null;
-    await runShell(`sips -Z 1400 -s format jpeg -s formatOptions 55 ${JSON.stringify(tmp)} --out ${JSON.stringify(out)}`, { timeout: 5000 });
-    const buf = await fs.promises.readFile(out);
+    const tmp = path.join(os.tmpdir(), `ive-glass-${Date.now()}.jpg`);
+    const res = await platform.screenshot(tmp);
+    if (!res.ok) return null;
+    const r = await runShell(
+      IS_MAC ? `sips -Z 1400 -s format jpeg -s formatQuality 55 "${tmp}" --out "${tmp}"` : 'echo skip',
+      { timeout: 5000 }
+    );
+    const buf = await fs.promises.readFile(tmp);
     await fs.promises.unlink(tmp).catch(() => {});
-    await fs.promises.unlink(out).catch(() => {});
     if (buf.length < 1000) return null;
     return `data:image/jpeg;base64,${buf.toString('base64')}`;
   } catch {
@@ -257,44 +266,31 @@ function endComposer({ restore = true } = {}) {
   if (restore) setTimeout(() => restoreFocus(), 60);
 }
 
-/* --------------------------- fn gesture flow ---------------------------- */
+/* --------------------------- gesture flow ------------------------------- */
 
-const fnBridge = new FnBridge({ root: ROOT, resourcesPath: process.resourcesPath });
+const gestures = new GestureBridge({ root: ROOT, resourcesPath: process.resourcesPath });
 
-fnBridge.on('status', (s) => {
-  S.helper = s;
+gestures.on('status', (s) => {
+  S.helper = { ...s, modifier: gestures.modifierLabel };
   notchSend('permissions', permissionsSnapshot());
 });
-fnBridge.on('fn', ({ down, x, y }) => {
+gestures.on('fn', ({ down, x, y }) => {
   S.fnDown = down;
   notchSend('fn', { down });
-  if (!down && S.gesture) {
-    // fn released mid-drag: finish softly.
-    finishGesture({ x: S.gesture.lastX, y: S.gesture.lastY });
-  }
+  if (!down && S.gesture) finishGesture({ x: S.gesture.lastX, y: S.gesture.lastY });
 });
-fnBridge.on('right', async ({ down, x, y }) => {
+gestures.on('right', async ({ down, x, y }) => {
   if (down) {
     if (S.overlay) return;
     await rememberExternalApp();
-    const pt = { x, y };
-    const display = screen.getDisplayNearestPoint(pt);
-    S.gesture = {
-      displayId: display.id,
-      startX: x, startY: y,
-      lastX: x, lastY: y,
-      moved: false,
-      t0: Date.now()
-    };
-    const { win, display: d } = windows.showOverlayAt(pt) || {};
+    const display = screen.getDisplayNearestPoint({ x, y });
+    S.gesture = { displayId: display.id, startX: x, startY: y, lastX: x, lastY: y, moved: false, t0: Date.now() };
+    const { win, display: d } = windows.showOverlayAt({ x, y }) || {};
     if (!win) return;
     S.overlay = d.id;
     win.webContents.send('selection:start', {
-      x: x - d.bounds.x,
-      y: y - d.bounds.y,
-      displayWidth: d.bounds.width,
-      displayHeight: d.bounds.height,
-      gesture: true
+      x: x - d.bounds.x, y: y - d.bounds.y,
+      displayWidth: d.bounds.width, displayHeight: d.bounds.height, gesture: true
     });
     notchSend('gesture', { phase: 'start' });
     captureGlass(d).then((glass) => {
@@ -304,7 +300,7 @@ fnBridge.on('right', async ({ down, x, y }) => {
     finishGesture({ x, y });
   }
 });
-fnBridge.on('drag', ({ x, y }) => {
+gestures.on('drag', ({ x, y }) => {
   if (!S.gesture) return;
   S.gesture.lastX = x;
   S.gesture.lastY = y;
@@ -332,7 +328,16 @@ function finishGesture(pt) {
 
 /* -------------------------------- IPC ---------------------------------- */
 
-ipcMain.handle('ive:config:get', () => ({ config: config.publicConfig(), presets: PRESETS, platform: process.platform }));
+ipcMain.handle('ive:config:get', () => ({
+  config: config.publicConfig(),
+  presets: PRESETS,
+  platform: process.platform,
+  arch: process.arch,
+  version: app.getVersion(),
+  modifier: gestures.modifierLabel,
+  capabilities: platform.capabilities,
+  packaged: app.isPackaged
+}));
 
 ipcMain.handle('ive:config:set', (_e, patch) => {
   if (patch && typeof patch.apiKey === 'string') {
@@ -340,9 +345,11 @@ ipcMain.handle('ive:config:set', (_e, patch) => {
     delete patch.apiKey;
   }
   config.set(patch);
-  if ('launchAtLogin' in (patch || {})) {
-    try { app.setLoginItemSettings({ openAtLogin: Boolean(patch.launchAtLogin), openAsHidden: true }); } catch {}
+  if (patch && 'launchAtLogin' in patch) {
+    try { app.setLoginItemSettings({ openAtLogin: Boolean(patch.launchAtLogin), openAsHidden: true }); } catch { /* unsupported */ }
   }
+  if (patch && 'showInDock' in patch && IS_MAC) windows.setDockVisible(Boolean(patch.showInDock));
+  if (patch && 'autoUpdate' in patch) updates.enabled = Boolean(patch.autoUpdate) && updates.enabled;
   const pub = config.publicConfig();
   notchSend('config', pub);
   return pub;
@@ -378,19 +385,20 @@ ipcMain.handle('ive:agent:cancel', () => { agent.cancel(); return { ok: true }; 
 ipcMain.handle('ive:agent:reset', () => { agent.reset(); return { ok: true }; });
 ipcMain.handle('ive:log:get', () => ({ entries: logStore.get('entries', []), pending: [...S.pending.keys()] }));
 ipcMain.handle('ive:log:clear', () => { logStore.set('entries', []); return { ok: true }; });
+ipcMain.handle('ive:log:tail', () => logger.tail(300));
 
 ipcMain.handle('ive:music:control', async (_e, { action, value }) => music.control(action, value));
 ipcMain.handle('ive:music:state', () => music.lastState || null);
+
+ipcMain.handle('ive:updates:status', () => updates.snapshot());
+ipcMain.handle('ive:updates:check', () => updates.check());
+ipcMain.handle('ive:updates:install', () => ({ ok: updates.install() }));
 
 ipcMain.on('ive:window:setInteractive', (_e, interactive) => {
   windows.setNotchInteractive(Boolean(interactive));
   if (interactive) rememberExternalApp();
 });
-
-ipcMain.on('ive:window:pinned', (_e, pinned) => {
-  S.notchPinned = Boolean(pinned);
-});
-
+ipcMain.on('ive:window:pinned', (_e, pinned) => { S.notchPinned = Boolean(pinned); });
 ipcMain.on('ive:window:focus', () => windows.focusNotch());
 ipcMain.on('ive:window:blur', () => { windows.setNotchInteractive(false); restoreFocus(); });
 
@@ -419,19 +427,10 @@ ipcMain.on('ive:selection:cancel', () => {
   notchSend('composer:closed', {});
 });
 
-ipcMain.on('ive:selection:begin', async () => {
-  const pt = screen.getCursorScreenPoint();
-  await openComposerAt(pt);
-});
-
+ipcMain.on('ive:selection:begin', async () => openComposerAt(screen.getCursorScreenPoint()));
 ipcMain.on('ive:selection:beginCentered', async () => {
   const d = screen.getPrimaryDisplay();
-  const pt = { x: d.bounds.x + d.bounds.width / 2, y: d.bounds.y + d.bounds.height * 0.42 };
-  await openComposerAt(pt);
-});
-
-ipcMain.on('ive:selection:moveTo', (e, { x, y }) => {
-  // reserved for future "drag the glass box" support in manual mode
+  await openComposerAt({ x: d.bounds.x + d.bounds.width / 2, y: d.bounds.y + d.bounds.height * 0.42 });
 });
 
 ipcMain.on('ive:openExternal', (_e, url) => {
@@ -439,40 +438,36 @@ ipcMain.on('ive:openExternal', (_e, url) => {
 });
 
 ipcMain.on('ive:app:quit', () => app.quit());
-
 ipcMain.on('ive:app:openApp', (_e, name) => {
   if (typeof name !== 'string' || !name.trim()) return;
-  runShell(`open -a '${name.replace(/'/g, `'\\''`)}'`, { timeout: 10_000 }).catch(() => {});
+  platform.openApp(name, 'open').catch(() => {});
 });
 
 ipcMain.on('ive:openSystemPrefs', (_e, which) => {
-  const map = {
-    accessibility: 'x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility',
-    input: 'x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent',
-    automation: 'x-apple.systempreferences:com.apple.preference.security?Privacy_Automation',
-    screen: 'x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture'
-  };
-  shell.openExternal(map[which] || map.accessibility);
+  platform.openSettings(which);
 });
 
 ipcMain.handle('ive:permissions:get', () => permissionsSnapshot());
 ipcMain.on('ive:permissions:prompt', () => {
-  if (process.platform === 'darwin') {
-    try { systemPreferences.isTrustedAccessibilityClient(true); } catch {}
-    if (fnBridge.ready) fnBridge.proc?.stdin?.write(''); // no-op; helper already prompts
+  if (IS_MAC) {
+    try { systemPreferences.isTrustedAccessibilityClient(true); } catch { /* ignore */ }
   }
 });
 
 ipcMain.on('ive:panel:toggle', () => notchSend('panel:toggle', {}));
 
 function permissionsSnapshot() {
-  let ax = false;
-  try { if (process.platform === 'darwin') ax = systemPreferences.isTrustedAccessibilityClient(false); } catch {}
+  let ax = true;
+  if (IS_MAC) {
+    try { ax = systemPreferences.isTrustedAccessibilityClient(false); } catch { ax = false; }
+  }
   return {
     platform: process.platform,
     accessibility: ax,
+    needsAccessibility: IS_MAC,
     helper: S.helper,
-    screenRecording: process.platform === 'darwin' ? undefined : false
+    modifier: gestures.modifierLabel,
+    capabilities: platform.capabilities
   };
 }
 
@@ -481,25 +476,28 @@ function permissionsSnapshot() {
 let tray = null;
 function buildTray() {
   try {
-    const imgPath = path.join(ROOT, 'assets', 'trayTemplate.png');
-    let img = nativeImage.createFromPath(imgPath);
+    const trayFile = process.platform === 'win32' ? 'tray-win.png' : 'trayTemplate.png';
+    let img = nativeImage.createFromPath(path.join(ROOT, 'assets', trayFile));
     if (img.isEmpty()) img = nativeImage.createEmpty();
-    if (process.platform === 'darwin') img.setTemplateImage(true);
-    tray = new Tray(img);
-    const playLabel = music.lastState?.playing ? 'Pause music' : 'Play music';
+    if (IS_MAC) img.setTemplateImage(true);
+    if (!tray) tray = new Tray(img);
+    else tray.setImage(img);
+    const playing = music.lastState && music.lastState.playing;
     tray.setToolTip('IVE');
     tray.setContextMenu(Menu.buildFromTemplate([
       { label: 'Open IVE', click: () => { windows.focusNotch(); notchSend('panel:open', { tab: 'assistant' }); } },
       { label: 'New prompt', accelerator: 'CommandOrControl+Shift+Space', click: () => openComposerAt(screen.getCursorScreenPoint()) },
       { type: 'separator' },
-      { label: playLabel, click: () => music.control('playpause') },
+      { label: playing ? 'Pause music' : 'Play music', click: () => music.control('playpause') },
       { label: 'Settings…', click: () => { windows.focusNotch(); notchSend('panel:open', { tab: 'settings' }); } },
       { type: 'separator' },
-      { label: S.helper.ok ? 'fn gesture: listening' : `fn gesture: ${S.helper.reason || 'off'}`, enabled: false },
+      { label: S.helper.ok ? `${gestures.modifierLabel} + right-drag: live` : `gesture: ${S.helper.reason || 'off'}`, enabled: false },
       { label: 'Quit IVE', role: 'quit' }
     ]));
     tray.on('click', () => { windows.focusNotch(); notchSend('panel:toggle', {}); });
-  } catch { /* headless tray */ }
+  } catch (e) {
+    logger.warn('tray unavailable', e.message);
+  }
 }
 
 /* ------------------------------ boot ----------------------------------- */
@@ -514,23 +512,26 @@ function registerShortcuts() {
       windows.focusNotch();
       notchSend('panel:toggle', {});
     });
-  } catch {}
+  } catch (e) {
+    logger.warn('shortcut registration failed', e.message);
+  }
 }
 
 app.whenReady().then(async () => {
   windows.init();
-  fnBridge.start();
+  windows.setDockVisible(Boolean(config.get('showInDock')));
+  gestures.start();
   music.start(3000);
   music.on('state', (s) => {
-    music.lastState = s;
     notchSend('music', s);
     if (tray) buildTray();
   });
+  updates.init();
+  updates.on('status', (s) => notchSend('updates', s));
   registerShortcuts();
   setTimeout(buildTray, 600);
 
-  // Watchdog: never leave the notch window swallowing clicks when the cursor
-  // has left it (fast exits don't always deliver a mousemove to the renderer).
+  // Watchdog: never leave the notch swallowing clicks once the cursor leaves.
   setInterval(() => {
     if (!windows.interactive || S.notchPinned) return;
     if (!windows.notch || windows.notch.isDestroyed()) return;
@@ -542,17 +543,16 @@ app.whenReady().then(async () => {
       windows.setNotchInteractive(false);
       windows.sendNotch('pointer:leave', {});
     }
-  }, 180).unref?.();
+  }, 180);
 
   // Track which app to hand focus back to.
   setInterval(async () => {
-    if (process.platform !== 'darwin') return;
     const name = await frontmostApp();
     if (name && !isOurApp(name)) S.lastExternalApp = name;
-  }, 2500).unref?.();
+  }, 2500);
 
   notchSend('permissions', permissionsSnapshot());
-  notchSend('music', music.lastState || null);
+  notchSend('music', music.lastState);
 
   if (MOCK_AI) {
     agent.ask = (text) => {
@@ -576,13 +576,12 @@ app.on('second-instance', () => {
 app.on('window-all-closed', (e) => e.preventDefault?.());
 
 app.on('before-quit', () => {
-  fnBridge.stop();
+  gestures.stop();
   music.stop();
   globalShortcut.unregisterAll();
+  logger.info('quit');
 });
 
 app.on('activate', () => {
-  if (BrowserWindow.getAllWindows().length === 0) {
-    windows.init();
-  }
+  if (BrowserWindow.getAllWindows().length === 0) windows.init();
 });

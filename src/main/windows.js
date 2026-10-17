@@ -1,15 +1,20 @@
 'use strict';
 /**
- * IVE — window layer.
+ * IVE — window layer (macOS + Windows).
  * One notch window (primary display) + one shadowless overlay per display for
  * the drag-to-compose gesture. Both are transparent, click-through when idle,
  * and never steal focus unless you are actively typing.
  */
-const { BrowserWindow, screen } = require('electron');
+const { BrowserWindow, screen, app } = require('electron');
 const path = require('path');
 
 const NOTCH_W = 660;
 const NOTCH_H = 760;
+const IS_MAC = process.platform === 'darwin';
+
+function panelType() {
+  return IS_MAC ? 'panel' : undefined;
+}
 
 class Windows {
   constructor({ preload, root, dev }) {
@@ -17,9 +22,8 @@ class Windows {
     this.root = root;
     this.dev = dev;
     this.notch = null;
-    this.overlays = new Map(); // display.id -> BrowserWindow
+    this.overlays = new Map();
     this.interactive = false;
-    this._displayWatcher = null;
   }
 
   init() {
@@ -43,6 +47,18 @@ class Windows {
     };
   }
 
+  webPreferences() {
+    return {
+      preload: this.preload,
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: false,
+      backgroundThrottling: false,
+      spellcheck: false,
+      webSecurity: true
+    };
+  }
+
   createNotch() {
     if (this.notch && !this.notch.isDestroyed()) return this.notch;
     const b = this.notchBounds();
@@ -61,34 +77,31 @@ class Windows {
       skipTaskbar: true,
       acceptFirstMouse: true,
       roundedCorners: false,
-      type: process.platform === 'darwin' ? 'panel' : undefined,
-      webPreferences: {
-        preload: this.preload,
-        contextIsolation: true,
-        nodeIntegration: false,
-        sandbox: false,
-        backgroundThrottling: false,
-        spellcheck: false
-      }
+      thickFrame: false,
+      type: panelType(),
+      webPreferences: this.webPreferences()
     });
 
     win.setAlwaysOnTop(true, 'screen-saver', 1);
-    if (process.platform === 'darwin') win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+    if (IS_MAC) win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
     win.setIgnoreMouseEvents(true, { forward: true });
     win.loadFile(path.join(this.root, 'renderer/notch/index.html'));
     win.once('ready-to-show', () => win.showInactive());
     win.on('closed', () => { this.notch = null; });
     win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+    win.webContents.on('will-navigate', (e, url) => {
+      if (!url.startsWith('file://')) e.preventDefault();
+    });
+    win.webContents.on('render-process-gone', () => {
+      setTimeout(() => { try { win.reload(); } catch { /* closed */ } }, 800);
+    });
     if (this.dev) win.webContents.openDevTools({ mode: 'detach' });
     this.notch = win;
     return win;
   }
 
   positionNotch() {
-    if (this.notch && !this.notch.isDestroyed()) {
-      const b = this.notchBounds();
-      this.notch.setBounds(b, false);
-    }
+    if (this.notch && !this.notch.isDestroyed()) this.notch.setBounds(this.notchBounds(), false);
   }
 
   createOverlays() {
@@ -112,38 +125,32 @@ class Windows {
         skipTaskbar: true,
         acceptFirstMouse: true,
         roundedCorners: false,
-        type: process.platform === 'darwin' ? 'panel' : undefined,
-        webPreferences: {
-          preload: this.preload,
-          contextIsolation: true,
-          nodeIntegration: false,
-          sandbox: false,
-          backgroundThrottling: false,
-          spellcheck: false
-        }
+        thickFrame: false,
+        type: panelType(),
+        webPreferences: this.webPreferences()
       });
       win.setAlwaysOnTop(true, 'pop-up-menu');
-      if (process.platform === 'darwin') win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+      if (IS_MAC) win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
       win.loadFile(path.join(this.root, 'renderer/overlay/index.html'), { query: { display: String(display.id) } });
       win.on('closed', () => this.overlays.delete(display.id));
       win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+      win.webContents.on('will-navigate', (e, url) => {
+        if (!url.startsWith('file://')) e.preventDefault();
+      });
       this.overlays.set(display.id, win);
     }
   }
 
   overlayForPoint(pt) {
     const display = screen.getDisplayNearestPoint(pt);
-    const win = this.overlays.get(display.id);
-    return { win, display };
+    return { win: this.overlays.get(display.id), display };
   }
 
   showOverlayAt(pt) {
     const { win, display } = this.overlayForPoint(pt);
     if (!win) return null;
-    win.__display = display;
     win.showInactive();
     win.setAlwaysOnTop(true, 'pop-up-menu');
-    // Keep notch above overlays.
     if (this.notch && !this.notch.isDestroyed()) this.notch.setAlwaysOnTop(true, 'screen-saver', 1);
     return { win, display };
   }
@@ -161,12 +168,6 @@ class Windows {
   sendOverlay(channel, payload, pt) {
     const target = pt ? this.overlayForPoint(pt).win : [...this.overlays.values()].find((w) => !w.isDestroyed() && w.isVisible());
     if (target && !target.isDestroyed()) target.webContents.send(channel, payload);
-  }
-
-  sendAllOverlays(channel, payload) {
-    for (const win of this.overlays.values()) {
-      if (!win.isDestroyed()) win.webContents.send(channel, payload);
-    }
   }
 
   setNotchInteractive(interactive) {
@@ -196,6 +197,14 @@ class Windows {
     for (const win of this.overlays.values()) {
       if (!win.isDestroyed()) win.hide();
     }
+  }
+
+  setDockVisible(visible) {
+    if (!IS_MAC) return;
+    try {
+      if (visible) app.dock.show();
+      else app.dock.hide();
+    } catch { /* no dock in some sessions */ }
   }
 }
 

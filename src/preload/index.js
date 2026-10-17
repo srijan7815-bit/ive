@@ -10,7 +10,7 @@ const EVENTS = new Set([
   'music', 'config', 'permissions', 'fn', 'gesture',
   'panel:open', 'panel:toggle',
   'selection:start', 'selection:move', 'selection:end', 'selection:open', 'selection:glass',
-  'composer:closed', 'pointer:leave'
+  'composer:closed', 'pointer:leave', 'updates'
 ]);
 
 function on(channel, cb) {
@@ -69,6 +69,16 @@ contextBridge.exposeInMainWorld('ive', {
     get: () => ipcRenderer.invoke('ive:permissions:get'),
     prompt: () => ipcRenderer.send('ive:permissions:prompt'),
     open: (which) => ipcRenderer.send('ive:openSystemPrefs', which)
+  },
+
+  updates: {
+    status: () => ipcRenderer.invoke('ive:updates:status'),
+    check: () => ipcRenderer.invoke('ive:updates:check'),
+    install: () => ipcRenderer.invoke('ive:updates:install')
+  },
+
+  logs: {
+    tail: () => ipcRenderer.invoke('ive:log:tail')
   },
 
   openExternal: (url) => ipcRenderer.send('ive:openExternal', url),

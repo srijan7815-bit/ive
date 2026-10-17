@@ -7,7 +7,9 @@ const cp = require('child_process');
 const files = [
   'src/main/config.js', 'src/main/shell.js', 'src/main/safety.js', 'src/main/music.js',
   'src/main/ai/providers.js', 'src/main/ai/tools.js', 'src/main/ai/agent.js',
-  'src/main/windows.js', 'src/main/fn-bridge.js'
+  'src/main/windows.js', 'src/main/gesture-bridge.js', 'src/main/logger.js',
+  'src/main/updates.js', 'src/main/platform/index.js', 'src/main/platform/darwin.js',
+  'src/main/platform/win32.js', 'src/main/platform/linux.js', 'src/main/main.js'
 ];
 for (const f of files) {
   try { resolve(f); check(`loads ${f}`, true); } catch (e) { check(`loads ${f} (${e.message})`, false); }

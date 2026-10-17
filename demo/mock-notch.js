@@ -173,7 +173,12 @@
     platform: 'darwin',
     version: '0.1.0 · demo',
     config: {
-      get: async () => ({ config: { ...state.config }, presets: state.presets, platform: 'darwin' }),
+      get: async () => ({
+        config: { ...state.config }, presets: state.presets, platform: 'darwin',
+        arch: 'arm64', version: '1.0.0', modifier: 'fn',
+        capabilities: { appControl: true, keystrokes: true, clicks: true, screenshots: true, music: true, search: true, shortcuts: true, trash: true, automation: true },
+        packaged: true
+      }),
       set: async (patch) => {
         for (const [k, v] of Object.entries(patch || {})) {
           state.config[k] = (v && typeof v === 'object' && !Array.isArray(v)) ? { ...state.config[k], ...v } : v;
@@ -238,6 +243,12 @@
       prompt: () => {},
       open: () => post({ type: 'toast', text: 'System Settings would open here' })
     },
+    updates: {
+      status: async () => ({ enabled: true, state: 'current', platform: 'darwin' }),
+      check: async () => new Promise((r) => setTimeout(() => r({ enabled: true, state: 'current', platform: 'darwin' }), 900)),
+      install: async () => ({ ok: false })
+    },
+    logs: { tail: async () => '(demo)' },
     openExternal: () => post({ type: 'toast', text: 'This is the in-browser demo' }),
     openApp: (name) => post({ type: 'toast', text: `Opening ${name} — demo only` }),
     quit: () => post({ type: 'toast', text: 'The real app quits here' }),

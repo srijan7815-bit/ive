@@ -21,9 +21,15 @@ const screen = {
   getCursorScreenPoint: () => ({ x: 100, y: 100 }),
   on: noop
 };
+const ipcHandlers = new Map();
+const ipcMain = {
+  handle: (ch, fn) => ipcHandlers.set(ch, fn),
+  on: (ch, fn) => ipcHandlers.set(ch, fn),
+  removeHandler: (ch) => ipcHandlers.delete(ch),
+  __handlers: ipcHandlers
+};
 module.exports = {
-  app, BrowserWindow: BW, screen,
-  ipcMain: { handle: noop, on: noop },
+  app, BrowserWindow: BW, screen, ipcMain,
   shell: { openExternal: noop },
   Notification: class { constructor(o) { this.o = o; } static isSupported() { return false; } show() {} },
   globalShortcut: { register: () => true, unregisterAll: noop },

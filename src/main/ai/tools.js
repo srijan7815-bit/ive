@@ -3,36 +3,25 @@
  * IVE — tool belt.
  * Every capability of the assistant is a named tool with a risk level.
  * Risk decides whether the notch asks you first.
+ *
+ * OS-touching tools call the platform layer so the same schema works on
+ * macOS and Windows.
  */
 const fs = require('fs/promises');
 const path = require('path');
 const os = require('os');
-const { runShell, runAppleScript } = require('../shell');
+const { runShell } = require('../shell');
 const { checkCommand, checkWritePath, isSafeShell } = require('../safety');
+const platform = require('../platform');
 
 const HOME = os.homedir();
+const OS = process.platform === 'darwin' ? 'macOS' : process.platform === 'win32' ? 'Windows' : 'Linux';
 
-/* --------------------------------- utils -------------------------------- */
-
-const escAS = (s) => String(s).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-const escSh = (s) => `'${String(s).replace(/'/g, `'\\''`)}'`;
-const expand = (p) => String(p || '').replace(/^~(?=$|\/)/, HOME);
+const expand = (p) => String(p || '').replace(/^~(?=$|[/\\])/, HOME);
 const clip = (s, n = 40_000) => {
   s = String(s ?? '');
   return s.length > n ? s.slice(0, n) + `\n… [${s.length - n} more characters truncated]` : s;
 };
-const KEYCODES = {
-  return: 36, enter: 36, tab: 48, space: 49, delete: 51, escape: 53, esc: 53,
-  left: 123, right: 124, down: 125, up: 126, home: 115, end: 119,
-  pageup: 116, pagedown: 121, f1: 122, f2: 120, f3: 99, f4: 118, f5: 96,
-  f6: 97, f7: 98, f8: 100, f9: 101, f10: 109, f11: 103, f12: 111
-};
-const MODS = { cmd: 'command down', command: 'command down', shift: 'shift down', alt: 'option down', option: 'option down', ctrl: 'control down', control: 'control down' };
-
-async function macOnly() {
-  if (process.platform !== 'darwin') return { error: 'This tool is macOS-only.' };
-  return null;
-}
 
 /* -------------------------------- schemas ------------------------------- */
 
@@ -40,23 +29,17 @@ const TOOLS = [
   {
     name: 'system_info',
     risk: 'read',
-    description: 'Get OS, hostname, user, current date/time/timezone and display information. Use before acting if you need context.',
+    description: 'Get OS, hostname, user, date/time/timezone and display information. Use before acting if you need context.',
     parameters: { type: 'object', properties: {}, additionalProperties: false },
-    async run(ctx) {
-      const s = await ctx.getSystemSummary();
-      return JSON.stringify(s, null, 2);
-    }
+    async run(ctx) { return JSON.stringify(await ctx.getSystemSummary(), null, 2); }
   },
   {
     name: 'list_dir',
     risk: 'read',
-    description: 'List a directory. Returns names, types and sizes, sorted with folders first.',
+    description: 'List a directory. Returns names, types and sizes, folders first.',
     parameters: {
       type: 'object',
-      properties: {
-        path: { type: 'string', description: 'Directory path. Supports ~. Defaults to the home folder.' },
-        showHidden: { type: 'boolean' }
-      },
+      properties: { path: { type: 'string', description: 'Directory path. Supports ~. Defaults to the home folder.' }, showHidden: { type: 'boolean' } },
       additionalProperties: false
     },
     async run(ctx, a) {
@@ -66,7 +49,7 @@ const TOOLS = [
       for (const e of entries) {
         if (!a.showHidden && e.name.startsWith('.')) continue;
         let size = 0;
-        try { size = e.isFile() ? (await fs.stat(path.join(dir, e.name))).size : 0; } catch {}
+        try { size = e.isFile() ? (await fs.stat(path.join(dir, e.name))).size : 0; } catch { /* unreadable */ }
         rows.push(`${e.isDirectory() ? 'dir ' : 'file'}  ${String(size).padStart(9)}  ${e.name}`);
       }
       rows.sort((x, y) => (x.startsWith('dir') === y.startsWith('dir') ? x.localeCompare(y) : x.startsWith('dir') ? -1 : 1));
@@ -79,13 +62,8 @@ const TOOLS = [
     description: 'Read a text file with line numbers. Use offset/limit for large files.',
     parameters: {
       type: 'object',
-      properties: {
-        path: { type: 'string' },
-        offset: { type: 'number', description: 'First line (1-based).' },
-        limit: { type: 'number', description: 'Max lines (default 400, max 2000).' }
-      },
-      required: ['path'],
-      additionalProperties: false
+      properties: { path: { type: 'string' }, offset: { type: 'number', description: 'First line (1-based).' }, limit: { type: 'number', description: 'Max lines (default 400, max 2000).' } },
+      required: ['path'], additionalProperties: false
     },
     async run(ctx, a) {
       const file = expand(a.path);
@@ -106,13 +84,8 @@ const TOOLS = [
     description: 'Create or overwrite a text file (parent folders are created). Show what you are about to write in your reply.',
     parameters: {
       type: 'object',
-      properties: {
-        path: { type: 'string' },
-        content: { type: 'string' },
-        append: { type: 'boolean' }
-      },
-      required: ['path', 'content'],
-      additionalProperties: false
+      properties: { path: { type: 'string' }, content: { type: 'string' }, append: { type: 'boolean' } },
+      required: ['path', 'content'], additionalProperties: false
     },
     async run(ctx, a) {
       const fence = checkWritePath(expand(a.path));
@@ -130,14 +103,8 @@ const TOOLS = [
     description: 'Replace an exact string in a file. Fails if the string is absent or ambiguous. Use for surgical edits.',
     parameters: {
       type: 'object',
-      properties: {
-        path: { type: 'string' },
-        find: { type: 'string' },
-        replace: { type: 'string' },
-        all: { type: 'boolean', description: 'Replace every occurrence (default false).' }
-      },
-      required: ['path', 'find', 'replace'],
-      additionalProperties: false
+      properties: { path: { type: 'string' }, find: { type: 'string' }, replace: { type: 'string' }, all: { type: 'boolean', description: 'Replace every occurrence (default false).' } },
+      required: ['path', 'find', 'replace'], additionalProperties: false
     },
     async run(ctx, a) {
       const fence = checkWritePath(expand(a.path));
@@ -181,47 +148,35 @@ const TOOLS = [
   {
     name: 'trash_path',
     risk: 'write',
-    description: 'Move a file or folder to the Trash (recoverable). Prefer this over deleting.',
+    description: 'Move a file or folder to the Trash / Recycle Bin (recoverable). Prefer this over deleting.',
     parameters: { type: 'object', properties: { path: { type: 'string' } }, required: ['path'], additionalProperties: false },
     async run(ctx, a) {
       const fence = checkWritePath(expand(a.path));
       if (!fence.ok) return `Refused: ${fence.reason}`;
-      if (process.platform !== 'darwin') return 'Trash is macOS-only. Use move_path instead.';
-      const r = await runAppleScript(`tell application "Finder" to delete POSIX file "${escAS(fence.abs)}"`);
-      return r.ok ? `Moved to Trash: ${fence.abs}` : `Could not trash: ${r.stderr}`;
+      return platform.trashPath(fence.abs);
     }
   },
   {
     name: 'search_files',
     risk: 'read',
-    description: 'Spotlight search for files by name/content on this Mac (mdfind).',
+    description: `Search this ${OS} machine for files by name. On macOS this uses Spotlight; on Windows a bounded filesystem walk.`,
     parameters: {
       type: 'object',
       properties: { query: { type: 'string' }, path: { type: 'string', description: 'Folder to search in (optional).' }, maxResults: { type: 'number' } },
-      required: ['query'],
-      additionalProperties: false
+      required: ['query'], additionalProperties: false
     },
     async run(ctx, a) {
-      if (await macOnly()) return 'Spotlight search is macOS-only.';
-      const max = Math.min(a.maxResults || 25, 100);
-      const scope = a.path ? ` -onlyin ${escSh(expand(a.path))}` : '';
-      const r = await runShell(`mdfind ${escSh(a.query)}${scope} | head -n ${max}`);
-      return r.stdout.trim() || '(no matches)';
+      return platform.searchFiles(a.query, { path: a.path ? expand(a.path) : undefined, max: Math.min(a.maxResults || 25, 100) });
     }
   },
   {
     name: 'shell_run',
     risk: 'shell',
-    description: 'Run a shell command on the Mac and return stdout/stderr. Working directory defaults to the home folder. Prefer the dedicated file tools for file work. Destructive/system-level commands are blocked.',
+    description: `Run a shell command (${OS === 'Windows' ? 'PowerShell' : 'zsh'}) and return stdout/stderr. Working directory defaults to the home folder. Prefer the dedicated file tools for file work. Destructive/system-level commands are blocked.`,
     parameters: {
       type: 'object',
-      properties: {
-        command: { type: 'string' },
-        cwd: { type: 'string' },
-        timeoutSec: { type: 'number', description: 'Default 90, max 300.' }
-      },
-      required: ['command'],
-      additionalProperties: false
+      properties: { command: { type: 'string' }, cwd: { type: 'string' }, timeoutSec: { type: 'number', description: 'Default 90, max 300.' } },
+      required: ['command'], additionalProperties: false
     },
     async run(ctx, a) {
       const check = checkCommand(a.command);
@@ -238,57 +193,27 @@ const TOOLS = [
   {
     name: 'app_control',
     risk: 'automation',
-    description: 'Open, focus or quit a macOS app by name (e.g. "Safari", "Figma", "Notes").',
+    description: 'Open, focus or quit an application by name (e.g. "Safari", "Figma", "Notes", "Spotify").',
     parameters: {
       type: 'object',
       properties: { app: { type: 'string' }, action: { type: 'string', enum: ['open', 'activate', 'quit'] } },
-      required: ['app', 'action'],
-      additionalProperties: false
+      required: ['app', 'action'], additionalProperties: false
     },
-    async run(ctx, a) {
-      if (await macOnly()) return 'App control is macOS-only.';
-      if (a.action === 'quit') {
-        const r = await runAppleScript(`tell application "${escAS(a.app)}" to quit`);
-        return r.ok ? `Quit ${a.app}.` : `Could not quit ${a.app}: ${r.stderr}`;
-      }
-      const r = await runShell(`open -a ${escSh(a.app)}`);
-      return r.ok ? `${a.action === 'activate' ? 'Focused' : 'Opened'} ${a.app}.` : `Could not open ${a.app}: ${r.stderr}`;
-    }
+    async run(ctx, a) { return platform.openApp(a.app, a.action); }
   },
   {
     name: 'active_app',
     risk: 'read',
     description: 'Name of the app currently in the foreground.',
     parameters: { type: 'object', properties: {}, additionalProperties: false },
-    async run() {
-      if (await macOnly()) return 'macOS-only.';
-      const r = await runAppleScript('tell application "System Events" to get name of first application process whose frontmost is true');
-      return r.stdout || '(unknown)';
-    }
+    async run() { return (await platform.activeApp()) || '(unknown)'; }
   },
   {
     name: 'list_windows',
     risk: 'read',
     description: 'List visible apps and their open windows.',
     parameters: { type: 'object', properties: { app: { type: 'string', description: 'Limit to one app.' } }, additionalProperties: false },
-    async run(ctx, a) {
-      if (await macOnly()) return 'macOS-only.';
-      if (a.app) {
-        const r = await runAppleScript(`tell application "System Events" to tell process "${escAS(a.app)}" to get name of every window`);
-        return r.ok ? r.stdout : `No windows found for ${a.app}.`;
-      }
-      const r = await runAppleScript(`
-tell application "System Events"
-  set out to ""
-  repeat with p in (application processes whose visible is true)
-    try
-      set out to out & (name of p) & ": " & (count of windows of p) & " window(s)" & linefeed
-    end try
-  end repeat
-  return out
-end tell`);
-      return clip(r.stdout || '(none)', 8000);
-    }
+    async run(ctx, a) { return platform.listWindows(a.app); }
   },
   {
     name: 'open_url',
@@ -297,7 +222,8 @@ end tell`);
     parameters: { type: 'object', properties: { url: { type: 'string' } }, required: ['url'], additionalProperties: false },
     async run(ctx, a) {
       if (!/^https?:\/\//i.test(a.url)) return 'Refused: only http(s) URLs.';
-      const r = await runShell(`open ${escSh(a.url)}`);
+      const cmd = process.platform === 'win32' ? `Start-Process ${JSON.stringify(a.url)}` : `open '${a.url.replace(/'/g, `'\\''`)}'`;
+      const r = await runShell(cmd);
       return r.ok ? `Opened ${a.url}` : `Failed: ${r.stderr}`;
     }
   },
@@ -308,36 +234,26 @@ end tell`);
     parameters: {
       type: 'object',
       properties: { action: { type: 'string', enum: ['read', 'write'] }, text: { type: 'string' } },
-      required: ['action'],
-      additionalProperties: false
+      required: ['action'], additionalProperties: false
     },
     async run(ctx, a) {
-      if (await macOnly()) return 'macOS-only.';
-      if (a.action === 'read') {
-        const r = await runShell('pbpaste');
-        return clip(r.stdout, 20_000) || '(clipboard is empty)';
-      }
-      const tmp = path.join(os.tmpdir(), `ive-clip-${Date.now()}.txt`);
-      await fs.writeFile(tmp, a.text || '', 'utf8');
-      const r = await runShell(`pbcopy < ${escSh(tmp)}`);
-      await fs.unlink(tmp).catch(() => {});
-      return r.ok ? `Copied ${(a.text || '').length} characters.` : `Failed: ${r.stderr}`;
+      if (a.action === 'read') return clip(await platform.clipboardRead(), 20_000);
+      return platform.clipboardWrite(a.text || '');
     }
   },
   {
     name: 'screenshot',
     risk: 'read',
-    description: 'Capture the screen (all displays) so you can see the current state. The image is attached to your next turn.',
+    description: 'Capture the screen so you can see the current state. The image is attached to your next turn.',
     parameters: { type: 'object', properties: {}, additionalProperties: false },
     async run(ctx) {
-      if (await macOnly()) return 'Screenshots are macOS-only.';
+      if (!platform.capabilities.screenshots) return 'Screenshots are not available on this platform.';
       const file = path.join(os.tmpdir(), `ive-shot-${Date.now()}.png`);
-      const r = await runShell(`screencapture -x -t png ${escSh(file)}`, { timeout: 15_000 });
-      if (!r.ok) return `Screenshot failed: ${r.stderr || 'Screen Recording permission may be missing.'}`;
+      const res = await platform.screenshot(file);
+      if (!res.ok) return `Screenshot failed: ${res.error}`;
       try {
         const buf = await fs.readFile(file);
-        const dataUrl = `data:image/png;base64,${buf.toString('base64')}`;
-        ctx.attachImage(dataUrl, `Screenshot ${new Date().toLocaleTimeString()}`);
+        ctx.attachImage(`data:image/png;base64,${buf.toString('base64')}`, `Screenshot ${new Date().toLocaleTimeString()}`);
         await fs.unlink(file).catch(() => {});
         return 'Screenshot captured and attached as an image in the next user turn.';
       } catch (e) {
@@ -348,12 +264,11 @@ end tell`);
   {
     name: 'type_text',
     risk: 'automation',
-    description: 'Type text into the app that is currently focused (keystroke injection). Requires Accessibility permission.',
+    description: 'Type text into the app that is currently focused (keystroke injection).',
     parameters: { type: 'object', properties: { text: { type: 'string' } }, required: ['text'], additionalProperties: false },
     async run(ctx, a) {
-      if (await macOnly()) return 'macOS-only.';
-      const r = await runAppleScript(`tell application "System Events" to keystroke "${escAS(a.text)}"`);
-      return r.ok ? `Typed ${a.text.length} characters.` : `Could not type: ${r.stderr} (grant Accessibility permission to IVE.)`;
+      if (!platform.capabilities.keystrokes) return 'Typing is not available on this platform.';
+      return platform.typeText(a.text);
     }
   },
   {
@@ -362,81 +277,46 @@ end tell`);
     description: 'Press a key with optional modifiers in the focused app, e.g. key:"return", modifiers:["cmd"].',
     parameters: {
       type: 'object',
-      properties: {
-        key: { type: 'string' },
-        modifiers: { type: 'array', items: { type: 'string' } }
-      },
-      required: ['key'],
-      additionalProperties: false
+      properties: { key: { type: 'string' }, modifiers: { type: 'array', items: { type: 'string' } } },
+      required: ['key'], additionalProperties: false
     },
     async run(ctx, a) {
-      if (await macOnly()) return 'macOS-only.';
-      const code = KEYCODES[String(a.key).toLowerCase()];
-      const mods = (a.modifiers || []).map((m) => MODS[String(m).toLowerCase()]).filter(Boolean);
-      let script;
-      if (code !== undefined) {
-        script = `tell application "System Events" to key code ${code}${mods.length ? ` using {${mods.join(', ')}}` : ''}`;
-      } else if (String(a.key).length === 1) {
-        script = `tell application "System Events" to keystroke "${escAS(a.key)}"${mods.length ? ` using {${mods.join(', ')}}` : ''}`;
-      } else {
-        return `Unknown key "${a.key}".`;
-      }
-      const r = await runAppleScript(script);
-      return r.ok ? `Pressed ${a.key}${a.modifiers?.length ? ' + ' + a.modifiers.join('+') : ''}.` : `Failed: ${r.stderr}`;
+      if (!platform.capabilities.keystrokes) return 'Key presses are not available on this platform.';
+      return platform.pressKey(a.key, a.modifiers || []);
     }
   },
   {
     name: 'mouse_click',
     risk: 'automation',
-    description: 'Click at global screen coordinates (points, origin top-left). Best effort; requires Accessibility.',
+    description: 'Click at global screen coordinates (points/pixels, origin top-left).',
     parameters: {
       type: 'object',
-      properties: {
-        x: { type: 'number' }, y: { type: 'number' },
-        button: { type: 'string', enum: ['left', 'right'] },
-        double: { type: 'boolean' }
-      },
-      required: ['x', 'y'],
-      additionalProperties: false
+      properties: { x: { type: 'number' }, y: { type: 'number' }, button: { type: 'string', enum: ['left', 'right'] }, double: { type: 'boolean' } },
+      required: ['x', 'y'], additionalProperties: false
     },
     async run(ctx, a) {
-      if (await macOnly()) return 'macOS-only.';
-      const btn = a.button === 'right' ? 2 : 1;
-      const script = `
-use framework "CoreGraphics"
-use scripting additions
-set pt to current application's CGPointMake(${Number(a.x)}, ${Number(a.y)})
-repeat with i from 1 to ${a.double ? 2 : 1}
-  current application's CGEventCreateMouseEvent(missing value, ${btn === 2 ? '1' : '0'}, pt, 0)
-  set down to current application's CGEventCreateMouseEvent(missing value, ${btn === 2 ? '3' : '1'}, pt, ${btn})
-  set up to current application's CGEventCreateMouseEvent(missing value, ${btn === 2 ? '4' : '2'}, pt, ${btn})
-  current application's CGEventPost(0, down)
-  current application's CGEventPost(0, up)
-end repeat`;
-      const r = await runAppleScript(script);
-      return r.ok ? `Clicked (${a.x}, ${a.y}).` : `Click failed: ${r.stderr}`;
+      if (!platform.capabilities.clicks) return 'Clicks are not available on this platform.';
+      return platform.click(Math.round(a.x), Math.round(a.y), { button: a.button || 'left', double: Boolean(a.double) });
     }
   },
   {
     name: 'run_shortcut',
     risk: 'automation',
-    description: 'Run an Apple Shortcut by name (the Shortcuts app).',
+    description: 'Run an Apple Shortcut by name (macOS only).',
     parameters: { type: 'object', properties: { name: { type: 'string' } }, required: ['name'], additionalProperties: false },
     async run(ctx, a) {
-      if (await macOnly()) return 'macOS-only.';
-      const r = await runShell(`shortcuts run ${escSh(a.name)}`, { timeout: 120_000 });
-      return r.ok ? `Shortcut "${a.name}" finished. ${clip(r.stdout, 4000)}` : `Shortcut failed: ${r.stderr}`;
+      if (!platform.capabilities.shortcuts) return platform.runShortcut(a.name);
+      return platform.runShortcut(a.name);
     }
   },
   {
     name: 'music',
     risk: 'read',
-    description: 'Read or control Apple Music / Spotify: play, pause, playpause, next, previous, seek (seconds), status.',
+    description: 'Read or control the system music player: play, pause, playpause, next, previous, seek (seconds), status.',
     parameters: {
       type: 'object',
       properties: { action: { type: 'string', enum: ['status', 'play', 'pause', 'playpause', 'next', 'previous', 'seek'] }, seconds: { type: 'number' } },
-      required: ['action'],
-      additionalProperties: false
+      required: ['action'], additionalProperties: false
     },
     async run(ctx, a) {
       if (a.action === 'status') return JSON.stringify(ctx.musicState?.() || {}, null, 2);
@@ -457,35 +337,22 @@ end repeat`;
   {
     name: 'ask_user',
     risk: 'read',
-    description: 'Ask the user a question or request a decision. A card expands from the notch; the user can answer anytime while you wait. Provide 2–4 options. Use this for destructive-ish actions, ambiguity, or personal choices.',
+    description: 'Ask the user a question or request a decision. A card expands from the notch; the user can answer anytime while you wait. Provide 2–4 options.',
     parameters: {
       type: 'object',
       properties: {
         question: { type: 'string' },
         detail: { type: 'string', description: 'Optional context shown under the question.' },
         options: {
-          type: 'array',
-          minItems: 2,
-          maxItems: 4,
-          items: {
-            type: 'object',
-            properties: { id: { type: 'string' }, label: { type: 'string' } },
-            required: ['id', 'label']
-          }
+          type: 'array', minItems: 2, maxItems: 4,
+          items: { type: 'object', properties: { id: { type: 'string' }, label: { type: 'string' } }, required: ['id', 'label'] }
         }
       },
-      required: ['question', 'options'],
-      additionalProperties: false
+      required: ['question', 'options'], additionalProperties: false
     },
     async run(ctx, a) {
       const options = a.options.slice(0, 4).map((o) => ({ id: String(o.id), label: String(o.label) }));
-      const res = await ctx.requestChoice({
-        title: 'IVE needs you',
-        body: a.question,
-        detail: a.detail || '',
-        options,
-        kind: 'question'
-      });
+      const res = await ctx.requestChoice({ title: 'IVE needs you', body: a.question, detail: a.detail || '', options, kind: 'question' });
       return `The user answered: ${res.label} (${res.id}).`;
     }
   },
@@ -498,7 +365,7 @@ end repeat`;
       if (!/^https?:\/\//i.test(a.url)) return 'Refused: only http(s) URLs.';
       try {
         const res = await fetch(a.url, {
-          headers: { 'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X) IVE/0.1' },
+          headers: { 'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X) IVE/1.0' },
           signal: AbortSignal.timeout(25_000)
         });
         const ct = res.headers.get('content-type') || '';
@@ -526,15 +393,11 @@ function schema(t) {
 }
 
 function inferRisk(tool, args) {
-  if (tool.name === 'music' || tool.name === 'ask_user' || tool.name === 'notify' || tool.name === 'active_app' || tool.name === 'system_info') return 'read';
+  if (['music', 'ask_user', 'notify', 'active_app', 'system_info'].includes(tool.name)) return 'read';
   if (tool.name === 'shell_run') return isSafeShell(args.command) ? 'safe-shell' : 'shell';
   return tool.risk;
 }
 
-/**
- * Execute one tool call with policy.
- * ctx: { config, authorize, requestChoice, attachImage, music, musicState, notify, getSystemSummary }
- */
 async function executeTool(ctx, call) {
   const tool = byName.get(call.name);
   if (!tool) return { ok: false, content: `Unknown tool: ${call.name}` };
@@ -564,12 +427,8 @@ async function executeTool(ctx, call) {
       ],
       kind: 'permission'
     });
-    if (!verdict || verdict.id === 'deny' || verdict.timeout) {
-      return { ok: false, content: 'The user denied this action.' };
-    }
-    if (verdict.id === 'always') {
-      ctx.rememberAlways(risk);
-    }
+    if (!verdict || verdict.id === 'deny' || verdict.timeout) return { ok: false, content: 'The user denied this action.' };
+    if (verdict.id === 'always') ctx.rememberAlways(risk);
   }
 
   try {
@@ -589,10 +448,8 @@ function describeCall(name, args) {
   if (name === 'write_file') return `${args.path}\n${(args.content || '').slice(0, 300)}${(args.content || '').length > 300 ? '…' : ''}`;
   if (name === 'edit_file') return `${args.path}\n− ${(args.find || '').slice(0, 120)}\n+ ${(args.replace || '').slice(0, 120)}`;
   const parts = [];
-  for (const [k, v] of Object.entries(args)) {
-    parts.push(`${k}: ${typeof v === 'string' ? v.slice(0, 160) : JSON.stringify(v)}`);
-  }
+  for (const [k, v] of Object.entries(args)) parts.push(`${k}: ${typeof v === 'string' ? v.slice(0, 160) : JSON.stringify(v)}`);
   return parts.join('\n') || 'Continue?';
 }
 
-module.exports = { TOOLS, toolSchemas: TOOLS.map(schema), executeTool, inferRisk, byName };
+module.exports = { TOOLS, toolSchemas: TOOLS.map(schema), executeTool, inferRisk, byName, OS };

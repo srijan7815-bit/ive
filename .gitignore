@@ -6,6 +6,16 @@ native/fn-listener/.build/
 .DS_Store
 .env
 *.icns
+!build/icon.icns
 .design/
 demo/frames/
 demo/out/
+
+# Android
+android/.gradle/
+android/.kotlin/
+android/build/
+android/app/build/
+android/local.properties
+android/*.keystore
+android/keystore.properties

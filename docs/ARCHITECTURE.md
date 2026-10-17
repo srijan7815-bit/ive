@@ -1,5 +1,24 @@
 # IVE — architecture
 
+IVE is one design, three implementations of the same idea. The macOS and
+Windows apps are Electron and share ~95% of their code; Android is a native
+Kotlin/Compose build (see [ANDROID.md](ANDROID.md)).
+
+Everything that differs per OS lives behind `src/main/platform/`:
+
+| capability | darwin | win32 | linux |
+| --- | --- | --- | --- |
+| open gesture | `fn` + right-drag (Swift tap) | `Ctrl+Alt` + right-drag (PowerShell hook) | `⌘⇧Space` only |
+| notch geometry | menu-bar island, per display | 660×760 top overlay, per display | 660×760 top overlay |
+| automation | AppleScript / `osascript` | PowerShell / Win32 UI Automation | `xdotool` if present |
+| music | Music.app + Spotify via AppleScript | System media sessions (GSMTC) | MPRIS |
+| updates | `electron-updater` | `electron-updater` | `electron-updater` |
+
+If a capability is missing, the platform object says so (`platform.capabilities`)
+and the renderer hides the affected control instead of failing at call time.
+
+## macOS
+
 Three small programs wearing one name:
 
 ```
@@ -128,24 +147,47 @@ Polls Music.app / Spotify with AppleScript every 3 s (cheap, no entitlements), n
 
 The API key is stored as `enc:<base64>` using `safeStorage.encryptString` (Keychain) when available.
 
+## Windows
+
+`src/main/gesture-bridge.js` spawns `native/win/gesture-hook.ps1` — a
+`RegisterHotKey`-free low-level mouse hook written in PowerShell (no native
+module, no driver) that watches for `Ctrl+Alt` + right-button and emits the same
+NDJSON as the Swift helper. Window geometry is identical (a 660×760 top-centred
+transparent overlay per monitor); the tray icon is `assets/tray-win.png` and the
+app runs without a taskbar button.
+
+Automation goes through a small PowerShell surface: window enumeration
+(`Get-Process | Where MainWindowHandle`), keystrokes (`SendKeys`), clipboard,
+and `Start-Process` for app launches. The same risk matrix and denylist apply.
+
 ## Release
 
 ```bash
 npm run icons && npm run build:fn
-npm run dist              # .dmg + .zip, arm64 + x64, output: release/
+npm run dist:mac           # .dmg + .zip, arm64 + x64 → release/
+npm run dist:win           # NSIS x64 + arm64            → release/
+cd android && ./gradlew assembleRelease bundleRelease
 ```
 
-Signing/notarization: set `CSC_LINK`, `CSC_KEY_PASSWORD`, `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID` and electron-builder handles the rest. `.github/workflows/build.yml` builds on every push to `main` and publishes a draft GitHub release on `v*` tags.
+CI (`.github/workflows/{build,release,android}.yml`, parked in `ci/`) builds all
+three on a tag and publishes one GitHub Release. Signing, notarization, store
+uploads and rollback are covered in [RELEASING.md](RELEASING.md).
 
 ## File map
 
 ```
-src/main/          main.js · windows.js · fn-bridge.js · music.js · safety.js · shell.js · config.js
+src/main/          main.js · windows.js · gesture-bridge.js · music.js · updates.js
+                   logger.js · safety.js · shell.js · config.js
+src/main/platform/ index.js · darwin.js · win32.js · linux.js
 src/main/ai/       agent.js · providers.js · tools.js
 src/preload/       index.js            (the only bridge into the renderers)
 src/renderer/notch  index.html · styles.css · app.js
 src/renderer/overlay index.html · styles.css · app.js
-native/fn-listener  main.swift
+native/fn-listener  main.swift          (macOS gesture tap)
+native/win/        gesture-hook.ps1      (Windows gesture hook)
+android/           Kotlin + Compose app: overlay, agent, tools, media
 demo/              template.html · mock-*.js → demo/index.html (built)
-scripts/           build-demo.mjs · screenshot.mjs · make-icons.py · build-fn-listener.sh · push-github.sh
+scripts/           build-demo.mjs · screenshot.mjs · make-icons.py
+                   build-fn-listener.sh · bump-version.mjs
+ci/                build.yml · release.yml · android.yml (copy into .github/workflows)
 ```

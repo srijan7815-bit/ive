@@ -94,7 +94,7 @@
                 <svg viewBox="0 0 24 24"><path d="M5 12h13M13 6l6 6-6 6" stroke-linecap="round" stroke-linejoin="round"/></svg>
               </button>
             </form>
-            <div class="foot-hint"><span>fn + right-drag</span><i></i><span>⌘⇧Space composer</span><i></i><span>enter sends</span></div>
+            <div class="foot-hint"><span id="hintGesture">fn + right-drag</span><i></i><span id="hintShortcut">⌘⇧Space composer</span><i></i><span>enter sends</span></div>
           </section>
 
           <!-- music -->
@@ -171,26 +171,38 @@
               <div class="switch-row"><div><b>Stay silent</b><small>Results land in the notch log instead of popping up.</small></div><button class="switch on" data-toggle="silent" role="switch"></button></div>
               <div class="switch-row"><div><b>Sound cues</b><small>A soft tick when IVE needs you.</small></div><button class="switch" data-toggle="sound" role="switch"></button></div>
               <div class="switch-row"><div><b>Launch at login</b><small>The notch is always there when you wake up.</small></div><button class="switch" data-toggle="launchAtLogin" role="switch"></button></div>
+              <div class="switch-row"><div><b>Automatic updates</b><small>Download in the background, install on restart.</small></div><button class="switch on" data-toggle="autoUpdate" role="switch"></button></div>
+              <div class="switch-row" id="rowDock"><div><b>Show in Dock</b><small>Off keeps IVE in the menu bar only.</small></div><button class="switch" data-toggle="showInDock" role="switch"></button></div>
 
               <div class="section-label">Permissions</div>
-              <div class="perm-row">
-                <div><b>Accessibility</b><small>fn gesture, keystrokes, clicks</small></div>
+              <div class="perm-row" id="rowAx">
+                <div><b>Accessibility</b><small>gesture, keystrokes, clicks</small></div>
                 <span class="perm-state" id="stateAx">—</span>
                 <button class="ghost-btn xs" data-perm="accessibility">Open</button>
               </div>
-              <div class="perm-row">
-                <div><b>Input Monitoring</b><small>observe the fn key</small></div>
+              <div class="perm-row" id="rowInput">
+                <div><b>Input Monitoring</b><small id="inputWhy">observe the fn key</small></div>
                 <span class="perm-state" id="stateInput">—</span>
                 <button class="ghost-btn xs" data-perm="input">Open</button>
               </div>
-              <div class="perm-row">
+              <div class="perm-row" id="rowScreen">
                 <div><b>Screen Recording</b><small>glass captures + screenshots</small></div>
                 <span class="perm-state" id="stateScreen">—</span>
                 <button class="ghost-btn xs" data-perm="screen">Open</button>
               </div>
               <div class="perm-row">
-                <div><b>fn helper</b><small id="helperReason">starting…</small></div>
+                <div><b>Gesture helper</b><small id="helperReason">starting…</small></div>
                 <span class="perm-state" id="stateHelper">—</span>
+              </div>
+
+              <div class="section-label">Updates</div>
+              <div class="update-row">
+                <div>
+                  <b id="updTitle">IVE <span id="updVersion">1.0.0</span></b>
+                  <small id="updStatus">Checking…</small>
+                </div>
+                <button class="ghost-btn xs" id="btnCheckUpdate">Check</button>
+                <button class="primary-btn xs" id="btnInstallUpdate" hidden>Restart</button>
               </div>
 
               <div class="section-label">Conversation</div>

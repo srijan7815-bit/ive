@@ -102,6 +102,8 @@
     },
     permission: { respond: async () => ({ ok: true }) },
     permissions: { get: async () => ({}), prompt: () => {}, open: () => {} },
+    updates: { status: async () => ({ state: 'current' }), check: async () => ({ state: 'current' }), install: async () => ({}) },
+    logs: { tail: async () => '' },
     openExternal: () => {},
     openApp: () => {},
     quit: () => {},

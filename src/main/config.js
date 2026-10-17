@@ -1,6 +1,6 @@
 'use strict';
 /**
- * IVE — config store
+ * IVE — config store.
  * API keys are encrypted at rest with Electron's safeStorage when available.
  */
 const { app, safeStorage } = require('electron');
@@ -11,7 +11,6 @@ let Store;
 try {
   Store = require('electron-store');
 } catch {
-  // Minimal fallback so the app still boots if the dep is missing.
   Store = class {
     constructor(opts) {
       this.file = path.join(app.getPath('userData'), 'ive-config.json');
@@ -21,36 +20,41 @@ try {
     _flush() { fs.mkdirSync(path.dirname(this.file), { recursive: true }); fs.writeFileSync(this.file, JSON.stringify(this.data, null, 2)); }
     get(k, d) { const v = this.data[k]; return v === undefined ? d : v; }
     set(k, v) { this.data[k] = v; this._flush(); }
-    onDidChange() {}
   };
 }
 
 const DEFAULTS = {
-  provider: 'openai', // openai | anthropic | ollama
+  schemaVersion: 2,
+  provider: 'openai',
   model: 'gpt-4o',
   baseUrl: '',
   apiKey: '',
   maxSteps: 24,
   temperature: 0.4,
   vision: true,
-  silent: true, // results land quietly in the notch log, no popups
+  silent: true,
   sound: false,
   launchAtLogin: false,
-  autoApprove: {
-    reads: true,
-    writes: true,
-    automation: true,
-    shell: false,
-    network: true
-  },
-  notch: {
-    clock: true,
-    music: true
-  },
+  showInDock: false,      // notch apps live in the menu bar
+  autoUpdate: true,
+  betaChannel: false,
+  autoApprove: { reads: true, writes: true, automation: true, shell: false, network: true },
+  notch: { clock: true, music: true },
   onboardingDone: false
 };
 
 const store = new Store({ name: 'ive-config', defaults: DEFAULTS });
+
+/** Forward-compatible settings migration. */
+function migrate() {
+  const v = store.get('schemaVersion', 1);
+  if (v < 2) {
+    if (store.get('showInDock') === undefined) store.set('showInDock', false);
+    if (store.get('autoUpdate') === undefined) store.set('autoUpdate', true);
+    store.set('schemaVersion', 2);
+  }
+}
+migrate();
 
 function get(key) {
   if (key === undefined) return store.store;
@@ -75,7 +79,6 @@ function publicConfig() {
   return c;
 }
 
-/** API key: stored encrypted when the OS supports it. */
 function writeApiKey(plain) {
   if (!plain) { store.set('apiKey', ''); return; }
   try {
@@ -91,11 +94,7 @@ function readApiKey() {
   const raw = store.get('apiKey', '');
   if (!raw) return '';
   if (raw.startsWith('enc:')) {
-    try {
-      return safeStorage.decryptString(Buffer.from(raw.slice(4), 'base64'));
-    } catch {
-      return '';
-    }
+    try { return safeStorage.decryptString(Buffer.from(raw.slice(4), 'base64')); } catch { return ''; }
   }
   return raw;
 }

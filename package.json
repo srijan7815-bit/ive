@@ -1,8 +1,8 @@
 {
   "name": "ive",
   "productName": "IVE",
-  "version": "0.1.0",
-  "description": "IVE \u2014 a living notch for macOS. Hold fn, drag, think out loud. The AI works while you do.",
+  "version": "1.0.0",
+  "description": "IVE \u2014 a living notch for macOS and Windows. Hold fn (or Ctrl+Alt), drag, think out loud; the AI works while you keep working.",
   "main": "src/main/main.js",
   "author": "IVE",
   "license": "MIT",
@@ -25,12 +25,18 @@
     "build:fn": "bash scripts/build-fn-listener.sh",
     "demo:build": "node scripts/build-demo.mjs",
     "demo:frames": "node scripts/screenshot.mjs",
-    "dist": "npm run build:fn && electron-builder --mac",
+    "dist": "npm run dist:mac",
+    "dist:mac": "npm run build:fn && electron-builder --mac",
+    "dist:win": "electron-builder --win",
     "dist:dir": "npm run build:fn && electron-builder --mac --dir",
-    "release": "npm run build:fn && electron-builder --mac --publish always"
+    "release:mac": "npm run build:fn && electron-builder --mac --publish always",
+    "release:win": "electron-builder --win --publish always",
+    "release:android": "cd android && ./gradlew bundleRelease assembleRelease",
+    "release": "npm run release:mac"
   },
   "dependencies": {
-    "electron-store": "^8.2.0"
+    "electron-store": "^8.2.0",
+    "electron-updater": "^6.3.9"
   },
   "devDependencies": {
     "electron": "^31.7.7",
@@ -43,7 +49,7 @@
   "build": {
     "appId": "ai.ive.app",
     "productName": "IVE",
-    "artifactName": "IVE-${version}-${arch}.${ext}",
+    "artifactName": "IVE-${version}-${os}-${arch}.${ext}",
     "directories": {
       "buildResources": "build",
       "output": "release"
@@ -52,15 +58,6 @@
       "src/**/*",
       "assets/**/*",
       "package.json"
-    ],
-    "extraResources": [
-      {
-        "from": "native/fn-listener/.build",
-        "to": "bin",
-        "filter": [
-          "fn-listener"
-        ]
-      }
     ],
     "mac": {
       "category": "public.app-category.productivity",
@@ -84,15 +81,90 @@
       "gatekeeperAssess": false,
       "entitlements": "build/entitlements.mac.plist",
       "entitlementsInherit": "build/entitlements.mac.plist",
+      "icon": "build/icon.icns",
+      "notarize": false,
       "extendInfo": {
+        "LSUIElement": 1,
         "NSAppleEventsUsageDescription": "IVE uses Apple events to let your assistant control apps on this Mac when you ask it to.",
         "NSScreenCaptureUsageDescription": "IVE can capture your screen so the assistant can see it when you ask.",
         "NSMicrophoneUsageDescription": "IVE can listen for voice commands."
-      }
+      },
+      "extraResources": [
+        {
+          "from": "native/fn-listener/.build",
+          "to": "bin",
+          "filter": [
+            "fn-listener"
+          ]
+        }
+      ]
     },
     "dmg": {
-      "background": null,
-      "iconSize": 100
+      "icon": "build/icon.icns",
+      "iconSize": 100,
+      "contents": [
+        {
+          "x": 130,
+          "y": 220
+        },
+        {
+          "x": 410,
+          "y": 220,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ]
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "srijan7815-bit",
+      "repo": "ive",
+      "releaseType": "draft"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.ico",
+      "signingHashAlgorithms": [
+        "sha256"
+      ],
+      "publisherName": "IVE",
+      "requestedExecutionLevel": "asInvoker",
+      "extraResources": [
+        {
+          "from": "native/win",
+          "to": "native",
+          "filter": [
+            "gesture-hook.ps1"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowElevation": true,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "IVE",
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "deleteAppDataOnUninstall": false,
+      "runAfterFinish": true
     }
   },
   "repository": {

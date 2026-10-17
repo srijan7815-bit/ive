@@ -8,8 +8,12 @@ const path = require('path');
 
 const stub = path.join(__dirname, 'stubs/electron.js');
 const orig = Module._resolveFilename;
+const OPTIONAL = new Set(['electron-updater']);
 Module._resolveFilename = function (request, ...args) {
   if (request === 'electron') return stub;
+  if (OPTIONAL.has(request)) {
+    try { return orig.call(this, request, ...args); } catch { return require.resolve(path.join(__dirname, 'stubs/optional.js')); }
+  }
   return orig.call(this, request, ...args);
 };
 

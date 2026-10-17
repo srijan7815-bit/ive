@@ -22,6 +22,14 @@ const SIZE = {
   hover: { w: 300, h: 40 }
 };
 
+const PLATFORM = {
+  id: (window.ive && window.ive.platform) || 'darwin',
+  modifier: 'fn',
+  version: '1.0.0',
+  capabilities: {},
+  packaged: false
+};
+
 const state = {
   view: 'collapsed',
   tab: 'assistant',
@@ -216,7 +224,7 @@ function renderLog() {
     empty.innerHTML = `
       <div class="empty-orb"><span></span><span></span><span></span></div>
       <p>I work from the notch.</p>
-      <p class="muted">Hold <kbd>fn</kbd> and right-drag anywhere to open the glass composer. Say what you need, press <kbd>↵</kbd>, and get back to work.</p>`;
+      <p class="muted">Hold <kbd>${esc(PLATFORM.modifier)}</kbd> and right-drag anywhere to open the glass composer. Say what you need, press <kbd>↵</kbd>, and get back to work.</p>`;
     log.appendChild(empty);
     return;
   }
@@ -625,6 +633,17 @@ $('#btnClearLog').addEventListener('click', async () => {
 
 $('#btnQuit').addEventListener('click', () => ive?.quit?.());
 
+$('#btnCheckUpdate').addEventListener('click', async () => {
+  const el = $('#updStatus');
+  if (el) { el.className = ''; el.textContent = 'Checking…'; }
+  const res = await ive?.updates?.check?.();
+  renderUpdateStatus(res || { state: 'idle' });
+});
+
+$('#btnInstallUpdate').addEventListener('click', async () => {
+  await ive?.updates?.install?.();
+});
+
 document.querySelectorAll('[data-link]').forEach((a) => {
   a.addEventListener('click', (e) => {
     e.preventDefault();
@@ -632,21 +651,75 @@ document.querySelectorAll('[data-link]').forEach((a) => {
   });
 });
 
+function applyPlatform(boot) {
+  PLATFORM.id = boot.platform || PLATFORM.id;
+  PLATFORM.modifier = boot.modifier || (boot.platform === 'win32' ? 'Ctrl + Alt' : 'fn');
+  PLATFORM.version = boot.version || PLATFORM.version;
+  PLATFORM.capabilities = boot.capabilities || {};
+  PLATFORM.packaged = Boolean(boot.packaged);
+
+  const isMac = PLATFORM.id === 'darwin';
+  const hintGesture = $('#hintGesture');
+  if (hintGesture) hintGesture.textContent = `${PLATFORM.modifier} + right-drag`;
+  const hintShortcut = $('#hintShortcut');
+  if (hintShortcut) hintShortcut.textContent = isMac ? '⌘⇧Space composer' : 'Ctrl+Shift+Space composer';
+  const inputWhy = $('#inputWhy');
+  if (inputWhy) inputWhy.textContent = isMac ? 'observe the fn key' : 'Ctrl+Alt gesture detection';
+
+  // macOS-only rows
+  if (!isMac) {
+    $('#rowInput')?.classList.add('hide');
+    $('#rowScreen')?.classList.add('hide');
+    $('#rowDock')?.classList.add('hide');
+    const axTitle = document.querySelector('#rowAx b');
+    if (axTitle) axTitle.textContent = 'Automation';
+    const axWhy = document.querySelector('#rowAx small');
+    if (axWhy) axWhy.textContent = 'keystrokes, clicks, app control';
+    const apt = $('#stateAx');
+    if (apt) { apt.textContent = 'allowed'; apt.className = 'perm-state ok'; }
+  }
+  if (!PLATFORM.packaged) {
+    $('#btnInstallUpdate')?.classList.add('hide');
+  }
+  const ver = $('#updVersion');
+  if (ver) ver.textContent = PLATFORM.version;
+  renderUpdateStatus({ state: PLATFORM.packaged ? 'checking' : 'dev' });
+}
+
+function renderUpdateStatus(u) {
+  const el = $('#updStatus');
+  const install = $('#btnInstallUpdate');
+  if (!el || !u) return;
+  el.className = '';
+  const map = {
+    idle: 'Idle', checking: 'Checking for updates…', available: 'Downloading update…',
+    downloading: 'Downloading update…', ready: `Version ${u.version || ''} is ready — restart to install`,
+    current: 'You are up to date.', error: u.error || 'Update check failed.', disabled: 'Updates unavailable in this build.',
+    dev: 'Development build — updates run in packaged releases.'
+  };
+  el.textContent = map[u.state] || u.state;
+  if (u.state === 'ready') el.classList.add('good');
+  if (u.state === 'error') el.classList.add('bad');
+  if (install) install.hidden = u.state !== 'ready';
+}
+
 function renderPermissions(p) {
   if (!p) return;
+  if (p.modifier) PLATFORM.modifier = p.modifier;
+  const isMac = (p.platform || PLATFORM.id) === 'darwin';
   const ax = $('#stateAx');
-  ax.textContent = p.accessibility ? 'granted' : 'not granted';
-  ax.className = `perm-state ${p.accessibility ? 'ok' : 'bad'}`;
+  const axOk = isMac ? p.accessibility : true;
+  ax.textContent = isMac ? (p.accessibility ? 'granted' : 'not granted') : 'allowed';
+  ax.className = `perm-state ${axOk ? 'ok' : 'bad'}`;
   const helper = $('#stateHelper');
   helper.textContent = p.helper?.ok ? 'listening' : 'off';
   helper.className = `perm-state ${p.helper?.ok ? 'ok' : 'bad'}`;
-  $('#helperReason').textContent = p.helper?.reason || (p.helper?.ok ? 'fn + right-drag is live' : 'using ⌘⇧Space fallback');
+  $('#helperReason').textContent = p.helper?.reason
+    || (p.helper?.ok ? `${PLATFORM.modifier} + right-drag is live` : 'using the global shortcut fallback');
   const inp = $('#stateInput');
-  inp.textContent = '—';
-  inp.className = 'perm-state';
+  if (inp) { inp.textContent = '—'; inp.className = 'perm-state'; }
   const scr = $('#stateScreen');
-  scr.textContent = '—';
-  scr.className = 'perm-state';
+  if (scr) { scr.textContent = p.capabilities && p.capabilities.screenshots ? 'ready' : '—'; scr.className = 'perm-state'; }
 }
 
 function showToast(text) {
@@ -712,6 +785,7 @@ on('music', (m) => {
 });
 
 on('permissions', renderPermissions);
+on('updates', renderUpdateStatus);
 
 on('config', (c) => {
   state.config = c;
@@ -755,6 +829,7 @@ on('pointer:leave', () => {
     if (boot) {
       state.config = boot.config;
       state.presets = boot.presets || {};
+      applyPlatform(boot);
       fillSettings();
       if (!boot.config.onboardingDone && !state.onboardingAutoShown) {
         state.onboardingAutoShown = true;

@@ -1,7 +1,7 @@
 'use strict';
 /**
- * IVE — process runner. All shell/AppleScript execution goes through here:
- * timeouts, output caps, and a hard kill switch.
+ * IVE — process runner. All shell/OS script execution goes through here:
+ * timeouts, output caps, and a hard kill switch. Cross-platform.
  */
 const { execFile } = require('child_process');
 const os = require('os');
@@ -9,13 +9,18 @@ const os = require('os');
 const DEFAULT_TIMEOUT = 90_000;
 const MAX_BUFFER = 8 * 1024 * 1024;
 
+function defaultShell() {
+  if (process.platform === 'win32') return { file: 'powershell.exe', args: ['-NoProfile', '-NonInteractive', '-Command'] };
+  return { file: process.env.SHELL || '/bin/zsh', args: ['-lc'] };
+}
+
 function runShell(command, { cwd, timeout = DEFAULT_TIMEOUT, env } = {}) {
-  const shell = process.env.SHELL || (process.platform === 'darwin' ? '/bin/zsh' : '/bin/bash');
+  const sh = defaultShell();
   return new Promise((resolve) => {
     const started = Date.now();
     const child = execFile(
-      shell,
-      ['-lc', command],
+      sh.file,
+      [...sh.args, command],
       {
         cwd: cwd || os.homedir(),
         timeout,
@@ -56,14 +61,4 @@ function runAppleScript(script, { timeout = 30_000 } = {}) {
   });
 }
 
-/** Run an osascript file via `osascript -l JavaScript` (JXA) if ever needed. */
-function runJXA(script, opts = {}) {
-  return new Promise((resolve) => {
-    if (process.platform !== 'darwin') return resolve({ ok: false, stdout: '', stderr: 'JXA is macOS only.' });
-    execFile('osascript', ['-l', 'JavaScript', '-e', script], { timeout: opts.timeout || 30_000, maxBuffer: MAX_BUFFER }, (err, stdout, stderr) => {
-      resolve({ ok: !err, stdout: String(stdout || '').trim(), stderr: String(stderr || '').trim() });
-    });
-  });
-}
-
-module.exports = { runShell, runAppleScript, runJXA };
+module.exports = { runShell, runAppleScript, defaultShell };
