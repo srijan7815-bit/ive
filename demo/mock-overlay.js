@@ -8,6 +8,16 @@
 
   window.IVE_DEMO_HOOK = (phase) => post({ type: 'overlay-state', phase });
 
+  /* ── browser demo only: fn is played by Alt ─────────────────── */
+  const isTyping = (el) => el && /^(INPUT|TEXTAREA)$/.test(el.tagName);
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Alt') post({ type: 'alt', down: true });
+  }, true);
+  window.addEventListener('keyup', (e) => {
+    if (e.key === 'Alt') post({ type: 'alt', down: false });
+  }, true);
+  window.addEventListener('blur', () => post({ type: 'alt', down: false }));
+
   /* In the browser there is no real screen capture, so the glass borrows a
      blurred echo of the demo wallpaper. In the app this is a real screenshot. */
   const demoGlass = document.createElement('style');

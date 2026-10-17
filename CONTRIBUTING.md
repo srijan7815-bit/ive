@@ -19,7 +19,7 @@ The whole interface is testable without Electron:
 npm run demo:build     # rebuilds demo/index.html and captures demo/frames/*.png
 ```
 
-`scripts/screenshot.mjs` drives the real renderers in headless Chromium and writes the frames used in the README. If you change motion or layout, run it and look at the frames before opening a PR.
+`scripts/screenshot.mjs` drives the real renderers in headless Chromium and writes the frames used in the README. `npm run test:demo` asserts the interaction paths (tabs, dock compose, enter-to-send, permission resolve, Option-drag). If you change motion or layout, run both and look at the frames before opening a PR.
 
 ## Ground rules for the notch
 

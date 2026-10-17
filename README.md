@@ -17,6 +17,9 @@
 <img src="docs/img/06-composer.jpg" width="49%" alt="Glass composer" />
 <img src="docs/img/04-panel-music.jpg" width="49%" alt="Music in the notch" />
 
+<img src="docs/img/12-inline-permission.jpg" width="49%" alt="A permission answered inside the panel" />
+<img src="docs/img/05-panel-settings.jpg" width="49%" alt="Settings" />
+
 </div>
 
 ---
@@ -46,7 +49,7 @@ open demo/index.html
 - Click the notch to open the panel (Assistant / Music / Settings).
 - `Play` in the dock runs the whole gesture for you, including a permission card.
 
-The demo embeds the **actual renderer source** of the app, with a mock of the main process. Regenerate it after changing the UI with `npm run demo:build`.
+The demo embeds the **actual renderer source** of the app, with a mock of the main process. Regenerate it after changing the UI with `npm run demo:build`. Browser interaction tests live in `test/demo/` (`npm run test:demo`).
 
 ---
 

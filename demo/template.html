@@ -362,6 +362,7 @@ const keysHint = document.getElementById('keysHint');
 
 let overlayLoaded = false;
 let panelOpen = false;
+let notchView = 'collapsed';
 let optHeld = false;
 let overlayPhase = 'idle';
 let autoAnswerTimer = null;
@@ -380,13 +381,21 @@ function toast(text) {
 function overlayOn(on) {
   overlayFrame.classList.toggle('on', on);
   overlayFrame.style.pointerEvents = on ? 'auto' : 'none';
+  if (!on) {
+    // hand keyboard focus back so the next Option press reaches the page
+    const a = document.activeElement;
+    if (a && a.tagName === 'IFRAME') a.blur();
+    if (a && a.blur) a.blur();
+  }
 }
 
 function updateNotchHit(e) {
   const w = window.innerWidth;
   const nearTop = e.clientY < 78 && Math.abs(e.clientX - w / 2) < 175;
   const insidePanel = panelOpen && Math.abs(e.clientX - w / 2) < 232 && e.clientY < 640;
-  notchFrame.style.pointerEvents = (nearTop || insidePanel) ? 'auto' : 'none';
+  // A live alert card is a notification — it owns the pointer until answered.
+  const insideAlert = notchView === 'alert' && Math.abs(e.clientX - w / 2) < 210 && e.clientY < 360;
+  notchFrame.style.pointerEvents = (nearTop || insidePanel || insideAlert) ? 'auto' : 'none';
 }
 
 window.addEventListener('mousemove', (e) => {
@@ -402,6 +411,11 @@ window.addEventListener('message', (e) => {
     if (m.type === 'hook') {
       if (m.event === 'panel-open') { panelOpen = true; updateNotchHit(lastPointer); }
       if (m.event === 'panel-close') { panelOpen = false; updateNotchHit(lastPointer); }
+      if (typeof m.event === 'string' && m.event.startsWith('view:')) {
+        notchView = m.event.slice(5);
+        if (notchView === 'alert') notchFrame.style.pointerEvents = 'auto';
+        updateNotchHit(lastPointer);
+      }
     }
     if (m.type === 'open-composer') {
       overlayOn(true);
@@ -409,6 +423,7 @@ window.addEventListener('message', (e) => {
       keysHint.classList.remove('show');
     }
     if (m.type === 'toast') toast(m.text);
+    if (m.type === 'alt') setOpt(Boolean(m.down));
     if (m.type === 'ask-created' && autoAnswerArmed) {
       clearTimeout(autoAnswerTimer);
       autoAnswerTimer = setTimeout(() => {
@@ -428,7 +443,10 @@ window.addEventListener('message', (e) => {
     if (m.type === 'overlay-state') {
       overlayPhase = m.phase;
       if (m.phase === 'armed' || m.phase === 'compose' || m.phase === 'sending') overlayOn(true);
-      if (m.phase === 'idle' && !optHeld) setTimeout(() => { if (!optHeld) overlayOn(false); }, 80);
+      if (m.phase === 'idle' && !optHeld) {
+        // guard against the idle→compose race when opening from the dock
+        setTimeout(() => { if (!optHeld && overlayPhase === 'idle') overlayOn(false); }, 120);
+      }
     }
     if (m.type === 'submit') {
       overlayOn(true);
@@ -445,24 +463,21 @@ window.addEventListener('message', (e) => {
 overlayFrame.addEventListener('load', () => { overlayLoaded = true; });
 
 /* Option = fn, in the browser */
-window.addEventListener('keydown', (e) => {
-  if (e.key === 'Alt' && !optHeld) {
-    optHeld = true;
+function setOpt(held) {
+  if (held === optHeld) return;
+  optHeld = held;
+  if (held) {
     overlayOn(true);
     keysHint.classList.add('show');
-    e.preventDefault();
-  }
-});
-window.addEventListener('keyup', (e) => {
-  if (e.key === 'Alt') {
-    optHeld = false;
+  } else {
     keysHint.classList.remove('show');
     if (overlayPhase === 'idle' || overlayPhase === 'armed') overlayOn(false);
   }
-});
+}
+window.addEventListener('keydown', (e) => { if (e.key === 'Alt') { e.preventDefault(); setOpt(true); } });
+window.addEventListener('keyup', (e) => { if (e.key === 'Alt') setOpt(false); });
 window.addEventListener('blur', () => {
-  optHeld = false;
-  keysHint.classList.remove('show');
+  setOpt(false);
   if (overlayPhase === 'idle') overlayOn(false);
 });
 

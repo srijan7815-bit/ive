@@ -61,6 +61,7 @@ const S = {
   helper: { ok: false, reason: 'starting…' },
   accessibility: false,
   agentBusy: false,
+  notchPinned: false,
   bootedAt: Date.now()
 };
 
@@ -386,6 +387,10 @@ ipcMain.on('ive:window:setInteractive', (_e, interactive) => {
   if (interactive) rememberExternalApp();
 });
 
+ipcMain.on('ive:window:pinned', (_e, pinned) => {
+  S.notchPinned = Boolean(pinned);
+});
+
 ipcMain.on('ive:window:focus', () => windows.focusNotch());
 ipcMain.on('ive:window:blur', () => { windows.setNotchInteractive(false); restoreFocus(); });
 
@@ -523,6 +528,21 @@ app.whenReady().then(async () => {
   });
   registerShortcuts();
   setTimeout(buildTray, 600);
+
+  // Watchdog: never leave the notch window swallowing clicks when the cursor
+  // has left it (fast exits don't always deliver a mousemove to the renderer).
+  setInterval(() => {
+    if (!windows.interactive || S.notchPinned) return;
+    if (!windows.notch || windows.notch.isDestroyed()) return;
+    const b = windows.notch.getBounds();
+    const c = screen.getCursorScreenPoint();
+    const pad = 4;
+    const inside = c.x >= b.x - pad && c.x <= b.x + b.width + pad && c.y >= b.y - pad && c.y <= b.y + b.height + pad;
+    if (!inside) {
+      windows.setNotchInteractive(false);
+      windows.sendNotch('pointer:leave', {});
+    }
+  }, 180).unref?.();
 
   // Track which app to hand focus back to.
   setInterval(async () => {

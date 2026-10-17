@@ -10,7 +10,7 @@ const EVENTS = new Set([
   'music', 'config', 'permissions', 'fn', 'gesture',
   'panel:open', 'panel:toggle',
   'selection:start', 'selection:move', 'selection:end', 'selection:open', 'selection:glass',
-  'composer:closed'
+  'composer:closed', 'pointer:leave'
 ]);
 
 function on(channel, cb) {
@@ -49,6 +49,7 @@ contextBridge.exposeInMainWorld('ive', {
 
   window: {
     setInteractive: (flag) => ipcRenderer.send('ive:window:setInteractive', flag),
+    setPinned: (flag) => ipcRenderer.send('ive:window:pinned', flag),
     focus: () => ipcRenderer.send('ive:window:focus'),
     blur: () => ipcRenderer.send('ive:window:blur')
   },

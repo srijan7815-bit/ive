@@ -71,6 +71,7 @@ function setView(next, { instant = false } = {}) {
   if (state.view === next && !instant) return;
   state.view = next;
   island.dataset.view = next;
+  window.IVE_DEMO_HOOK?.(`view:${next}`);
   if (!instant) {
     island.classList.add('morphing');
     clearTimeout(setView._t);
@@ -97,6 +98,7 @@ function setView(next, { instant = false } = {}) {
 function openPanel(tab) {
   if (tab) setTab(tab, { silent: true });
   state.pinned = true;
+  ive?.window?.setPinned?.(true);
   setView('panel');
   island.classList.add('pinned');
   ive?.window?.focus?.();
@@ -106,6 +108,7 @@ function openPanel(tab) {
 
 function closePanel() {
   state.pinned = false;
+  ive?.window?.setPinned?.(false);
   setView('collapsed');
   ive?.window?.blur?.();
   window.IVE_DEMO_HOOK?.('panel-close');
@@ -731,6 +734,12 @@ on('selection:start', () => {
 });
 
 on('composer:closed', () => updatePendingDot());
+
+on('pointer:leave', () => {
+  if (state.pinned || state.view === 'panel') return;
+  if (state.view === 'hover' || state.view === 'alert') setView('collapsed');
+  state.interactive = false;
+});
 
 /* ── init ─────────────────────────────────────────────────────── */
 

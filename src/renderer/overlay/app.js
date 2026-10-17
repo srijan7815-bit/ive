@@ -56,6 +56,7 @@ function resetSurface() {
   card.style.opacity = '0';
   inputEl.value = '';
   inputEl.disabled = false;
+  try { inputEl.blur(); } catch {}
   S.submitLock = false;
   S.phase = 'idle';
   S.glass = null;

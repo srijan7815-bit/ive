@@ -20,6 +20,7 @@
     "dev": "IVE_DEV=1 electron .",
     "demo": "IVE_DEMO=1 electron .",
     "test": "node test/run.js",
+    "test:demo": "node test/demo/smoke.js && node test/demo/interaction.js",
     "icons": "python3 scripts/make-icons.py",
     "build:fn": "bash scripts/build-fn-listener.sh",
     "demo:build": "node scripts/build-demo.mjs",

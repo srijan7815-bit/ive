@@ -129,6 +129,16 @@
 
   window.IVE_DEMO_HOOK = (event) => post({ type: 'hook', event });
 
+  /* ── browser demo only: fn is played by Alt ─────────────────── */
+  const isTyping = (el) => el && /^(INPUT|TEXTAREA)$/.test(el.tagName);
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Alt') post({ type: 'alt', down: true });
+  }, true);
+  window.addEventListener('keyup', (e) => {
+    if (e.key === 'Alt') post({ type: 'alt', down: false });
+  }, true);
+  window.addEventListener('blur', () => post({ type: 'alt', down: false }));
+
   window.addEventListener('message', (e) => {
     const m = e.data;
     if (!m || !m.__ive || m.src !== 'parent') return;
