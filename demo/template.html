@@ -1,0 +1,544 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>IVE — a notch that works for you</title>
+<style>
+  :root {
+    --mint: #9ef2cf;
+    --ink: #f4f7f6;
+    --muted: rgba(244, 247, 246, .55);
+    --faint: rgba(244, 247, 246, .3);
+    --line: rgba(255, 255, 255, .08);
+    --spring: cubic-bezier(.22, 1.2, .36, 1);
+    --noise: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix type='saturate' values='0'/></filter><rect width='100%' height='100%' filter='url(%23n)' opacity='.5'/></svg>");
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; overflow: hidden; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", Inter, system-ui, sans-serif;
+    color: var(--ink);
+    background: #08090d;
+    -webkit-font-smoothing: antialiased;
+    user-select: none;
+  }
+
+  /* ── wallpaper ─────────────────────────────────────────────── */
+  .wallpaper { position: fixed; inset: 0; overflow: hidden; }
+  .wallpaper::before {
+    content: ""; position: absolute; inset: -20%;
+    background:
+      radial-gradient(42% 46% at 22% 30%, rgba(70, 160, 132, .34), transparent 60%),
+      radial-gradient(40% 40% at 78% 22%, rgba(74, 104, 190, .30), transparent 62%),
+      radial-gradient(50% 60% at 62% 82%, rgba(148, 76, 160, .23), transparent 62%),
+      radial-gradient(35% 40% at 18% 84%, rgba(40, 120, 160, .18), transparent 60%),
+      linear-gradient(160deg, #0a0d14 0%, #0c0a12 45%, #0a0b10 100%);
+    filter: blur(10px) saturate(1.1);
+    animation: drift 38s ease-in-out infinite alternate;
+  }
+  .wallpaper::after {
+    content: ""; position: absolute; inset: 0;
+    background-image: var(--noise); opacity: .5; mix-blend-mode: overlay;
+  }
+  @keyframes drift {
+    from { transform: translate3d(-1.5%, -1%, 0) scale(1.02); }
+    to { transform: translate3d(1.5%, 1%, 0) scale(1.06); }
+  }
+
+  /* ── menu bar ──────────────────────────────────────────────── */
+  .menubar {
+    position: fixed; top: 0; left: 0; right: 0; height: 30px; z-index: 30;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 14px;
+    font-size: 10.5px; color: rgba(244, 247, 246, .8);
+    background: linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.015));
+    backdrop-filter: blur(22px) saturate(1.3);
+    border-bottom: .5px solid rgba(255,255,255,.06);
+  }
+  .mb-left, .mb-right { display: flex; align-items: center; gap: 14px; }
+  .apple { width: 11px; height: 13px; fill: rgba(244,247,246,.9); }
+  .mb-brand { font-weight: 700; letter-spacing: .12em; font-size: 10px; }
+  .mb-item { color: rgba(244,247,246,.55); }
+  .mb-right { gap: 12px; color: rgba(244,247,246,.6); font-variant-numeric: tabular-nums; }
+  .live {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 2px 7px; border-radius: 999px;
+    background: rgba(158, 242, 207, .1);
+    border: .5px solid rgba(158, 242, 207, .22);
+    color: rgba(158, 242, 207, .95); font-size: 8.5px; letter-spacing: .1em; text-transform: uppercase;
+  }
+  .live i { width: 4px; height: 4px; border-radius: 50%; background: var(--mint); box-shadow: 0 0 8px rgba(158,242,207,.8); animation: blink 2.2s ease-in-out infinite; }
+  @keyframes blink { 0%,100% { opacity: .45; } 50% { opacity: 1; } }
+
+  /* ── desktop ghosts ────────────────────────────────────────── */
+  .win {
+    position: fixed; z-index: 5;
+    border-radius: 12px;
+    background: rgba(16, 17, 22, .62);
+    border: .5px solid rgba(255, 255, 255, .1);
+    box-shadow: 0 40px 90px -30px rgba(0, 0, 0, .8), inset 0 1px 0 rgba(255, 255, 255, .08);
+    backdrop-filter: blur(24px) saturate(1.2);
+    overflow: hidden;
+    opacity: .92;
+  }
+  .win.notes { left: 6.5vw; top: 17vh; width: min(520px, 38vw); transform: rotate(-.5deg); }
+  .win.files { right: 5.5vw; top: 33vh; width: min(320px, 26vw); transform: rotate(.6deg); }
+  .win-bar {
+    height: 30px; display: flex; align-items: center; gap: 6px;
+    padding: 0 11px; border-bottom: .5px solid rgba(255,255,255,.07);
+    background: linear-gradient(180deg, rgba(255,255,255,.05), transparent);
+  }
+  .lights { display: flex; gap: 5px; margin-right: 6px; }
+  .lights i { width: 7px; height: 7px; border-radius: 50%; background: rgba(255,255,255,.14); }
+  .lights i:nth-child(1) { background: rgba(255, 120, 112, .75); }
+  .lights i:nth-child(2) { background: rgba(255, 196, 92, .7); }
+  .lights i:nth-child(3) { background: rgba(120, 210, 140, .7); }
+  .win-name { font-size: 9.5px; color: rgba(244,247,246,.6); letter-spacing: .02em; }
+  .win-meta { margin-left: auto; font-size: 8.5px; color: var(--faint); }
+  .doc { padding: 16px 20px 24px; font-family: "SF Mono", ui-monospace, Menlo, monospace; font-size: 10.5px; line-height: 2; color: rgba(240, 244, 243, .66); }
+  .doc .ln { display: flex; gap: 14px; }
+  .doc .n { width: 14px; text-align: right; color: rgba(255,255,255,.16); user-select: none; }
+  .doc .h { color: rgba(255,255,255,.9); font-weight: 600; }
+  .doc .mint { color: rgba(158, 242, 207, .82); }
+  .doc .rule { display: inline-block; width: 6px; height: 12px; margin-left: 2px; background: rgba(158,242,207,.75); vertical-align: -1px; animation: caret 1.2s steps(2) infinite; }
+  @keyframes caret { 50% { opacity: 0; } }
+  .rows { padding: 9px 9px 12px; }
+  .row { display: flex; align-items: center; gap: 9px; padding: 7px 8px; border-radius: 7px; font-size: 10px; color: rgba(244,247,246,.68); }
+  .row:hover { background: rgba(255,255,255,.04); }
+  .row svg { width: 13px; height: 13px; flex: none; }
+  .row .sz { margin-left: auto; font-size: 8.5px; color: var(--faint); font-variant-numeric: tabular-nums; }
+  .row.folder svg { color: rgba(158, 242, 207, .85); }
+  .row.file svg { color: rgba(143, 180, 255, .8); }
+  .win.files .win-meta { color: rgba(158,242,207,.65); }
+
+  /* ── dock ──────────────────────────────────────────────────── */
+  .dock {
+    position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%);
+    z-index: 40;
+    display: flex; align-items: center; gap: 4px;
+    padding: 6px;
+    border-radius: 16px;
+    background: rgba(14, 15, 19, .66);
+    border: .5px solid rgba(255, 255, 255, .11);
+    box-shadow: 0 30px 70px -24px rgba(0, 0, 0, .9), inset 0 1px 0 rgba(255,255,255,.1);
+    backdrop-filter: blur(30px) saturate(1.4);
+  }
+  .dock-btn {
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+    width: 62px; height: 46px; border-radius: 11px;
+    color: rgba(244,247,246,.65); font-size: 8.5px; letter-spacing: .01em;
+    border: 0; background: none; cursor: pointer;
+    transition: background .18s, color .18s, transform .18s var(--spring);
+  }
+  .dock-btn svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.7; }
+  .dock-btn:hover { background: rgba(255,255,255,.07); color: var(--ink); transform: translateY(-1px); }
+  .dock-btn:active { transform: scale(.94); }
+  .dock-btn.primary {
+    background: linear-gradient(160deg, rgba(158,242,207,.16), rgba(143,180,255,.1));
+    color: rgba(220, 255, 241, .95);
+    border: .5px solid rgba(158,242,207,.2);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.12);
+  }
+  .dock-btn.primary:hover { background: linear-gradient(160deg, rgba(158,242,207,.24), rgba(143,180,255,.14)); }
+  .dock-sep { width: .5px; height: 30px; background: rgba(255,255,255,.1); margin: 0 3px; }
+
+  /* ── try card ──────────────────────────────────────────────── */
+  .try {
+    position: fixed; left: 20px; bottom: 20px; z-index: 20;
+    width: 268px;
+    border-radius: 14px; padding: 13px 14px;
+    background: rgba(12, 13, 17, .62);
+    border: .5px solid rgba(255,255,255,.09);
+    box-shadow: 0 24px 60px -30px rgba(0,0,0,.9), inset 0 1px 0 rgba(255,255,255,.07);
+    backdrop-filter: blur(26px) saturate(1.3);
+    transition: opacity .4s ease, transform .5s var(--spring);
+  }
+  .try.hidden { opacity: 0; transform: translateY(8px); pointer-events: none; }
+  .try-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 7px; }
+  .try-title { font-size: 11px; font-weight: 650; letter-spacing: .01em; }
+  .try-x { border: 0; background: none; color: var(--faint); cursor: pointer; font-size: 13px; line-height: 1; padding: 2px 4px; border-radius: 5px; }
+  .try-x:hover { color: var(--ink); background: rgba(255,255,255,.06); }
+  .step { display: flex; gap: 8px; align-items: flex-start; padding: 4px 0; font-size: 9.5px; line-height: 1.45; color: var(--muted); }
+  .step b { color: rgba(244,247,246,.85); font-weight: 600; }
+  .num {
+    flex: none; width: 15px; height: 15px; border-radius: 5px;
+    display: grid; place-items: center; margin-top: 1px;
+    font-size: 8px; font-weight: 700; color: rgba(158,242,207,.9);
+    background: rgba(158,242,207,.09); border: .5px solid rgba(158,242,207,.22);
+  }
+  kbd {
+    display: inline-block; font-family: inherit; font-size: 8.5px;
+    padding: 0 3.5px; margin: 0 1px;
+    border-radius: 3.5px; border: .5px solid rgba(255,255,255,.18);
+    border-bottom-width: 1.5px; background: rgba(255,255,255,.07);
+    color: rgba(255,255,255,.82);
+  }
+  .try-foot { margin-top: 7px; padding-top: 7px; border-top: .5px solid rgba(255,255,255,.06); font-size: 8.5px; color: var(--faint); line-height: 1.5; }
+
+  /* ── frames ────────────────────────────────────────────────── */
+  #notchFrame, #overlayFrame {
+    position: fixed; border: 0; display: block; background: transparent;
+  }
+  #notchFrame {
+    top: 0; left: 50%; transform: translateX(-50%);
+    width: 660px; height: 780px;
+    z-index: 70;
+    pointer-events: none;
+  }
+  #overlayFrame {
+    inset: 0; width: 100%; height: 100%;
+    z-index: 60;
+    pointer-events: none; opacity: 0;
+    transition: opacity .22s ease;
+  }
+  #overlayFrame.on { opacity: 1; }
+
+  /* ── toast / footnote ──────────────────────────────────────── */
+  .toast {
+    position: fixed; left: 50%; bottom: 86px; transform: translate(-50%, 8px);
+    z-index: 80; pointer-events: none;
+    padding: 7px 13px; border-radius: 999px;
+    background: rgba(10, 11, 14, .82);
+    border: .5px solid rgba(255,255,255,.11);
+    box-shadow: 0 16px 40px -16px rgba(0,0,0,.9);
+    font-size: 9.5px; color: rgba(244,247,246,.85);
+    opacity: 0;
+    transition: opacity .25s ease, transform .35s var(--spring);
+  }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); }
+  .footnote {
+    position: fixed; right: 20px; bottom: 22px; z-index: 20;
+    font-size: 8.5px; letter-spacing: .04em; color: rgba(244,247,246,.28);
+    text-align: right; line-height: 1.6;
+  }
+  .footnote b { color: rgba(244,247,246,.5); font-weight: 650; letter-spacing: .16em; }
+  .keys-hint {
+    position: fixed; top: 44px; left: 50%; transform: translate(-50%, -8px);
+    z-index: 65; pointer-events: none;
+    padding: 6px 11px; border-radius: 999px;
+    font-size: 9px; color: rgba(158,242,207,.9);
+    background: rgba(10, 14, 13, .7);
+    border: .5px solid rgba(158,242,207,.2);
+    opacity: 0; transition: opacity .25s ease, transform .3s var(--spring);
+    white-space: nowrap;
+  }
+  .keys-hint.show { opacity: 1; transform: translate(-50%, 0); }
+
+  @media (max-width: 960px) {
+    .win.notes { left: 4vw; width: 44vw; }
+    .win.files { display: none; }
+    .try { display: none; }
+    .footnote { display: none; }
+  }
+  @media (max-height: 700px) {
+    .try { display: none; }
+    .win.notes { top: 13vh; }
+  }
+</style>
+</head>
+<body>
+  <div class="wallpaper"></div>
+
+  <div class="menubar">
+    <div class="mb-left">
+      <svg class="apple" viewBox="0 0 24 24"><path d="M16.4 12.8c0-2.3 1.9-3.4 2-3.5-1.1-1.6-2.8-1.8-3.4-1.9-1.4-.1-2.8.9-3.5.9-.7 0-1.8-.8-3-.8-1.5 0-2.9.9-3.7 2.3-1.6 2.7-.4 6.8 1.1 9 .7 1.1 1.6 2.3 2.7 2.2 1.1 0 1.5-.7 2.9-.7 1.3 0 1.7.7 2.9.7 1.2 0 2-1.1 2.7-2.2.9-1.3 1.2-2.5 1.2-2.6-.1 0-2.4-.9-2.4-3.4zM14.3 5.6c.6-.8 1-1.8.9-2.9-.9 0-2 .6-2.7 1.4-.6.7-1 1.8-.9 2.8 1 .1 2-.5 2.7-1.3z"/></svg>
+      <span class="mb-brand">IVE</span>
+      <span class="mb-item">File</span>
+      <span class="mb-item">Edit</span>
+      <span class="mb-item">View</span>
+      <span class="mb-item">Window</span>
+      <span class="mb-item">Help</span>
+    </div>
+    <div class="mb-right">
+      <span class="live"><i></i>interactive demo</span>
+      <span id="mbDate"></span>
+      <span id="mbClock">--:--</span>
+    </div>
+  </div>
+
+  <div class="win notes" role="presentation" aria-hidden="true">
+    <div class="win-bar">
+      <div class="lights"><i></i><i></i><i></i></div>
+      <span class="win-name">launch-notes.md</span>
+      <span class="win-meta">edited just now</span>
+    </div>
+    <div class="doc">
+      <div class="ln"><span class="n">1</span><span class="h"># Q3 launch — notes</span></div>
+      <div class="ln"><span class="n">2</span><span></span></div>
+      <div class="ln"><span class="n">3</span><span>- Notch spec locked: liquid glass, spring <span class="mint">0.52s</span>.</span></div>
+      <div class="ln"><span class="n">4</span><span>- Hover reveals transport. Alerts grow from the pill.</span></div>
+      <div class="ln"><span class="n">5</span><span>- Waiting on: deck artwork, landing copy.</span></div>
+      <div class="ln"><span class="n">6</span><span>- Rule: never open a window that steals focus.<span class="rule"></span></span></div>
+      <div class="ln"><span class="n">7</span><span></span></div>
+      <div class="ln"><span class="n">8</span><span>… ask IVE to finish this list.</span></div>
+    </div>
+  </div>
+
+  <div class="win files" role="presentation" aria-hidden="true">
+    <div class="win-bar">
+      <div class="lights"><i></i><i></i><i></i></div>
+      <span class="win-name">Downloads</span>
+      <span class="win-meta">18 items</span>
+    </div>
+    <div class="rows">
+      <div class="row folder">
+        <svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+        Q3 Decks <span class="sz">6 items</span>
+      </div>
+      <div class="row file">
+        <svg viewBox="0 0 24 24"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/></svg>
+        Q3-review-final.pptx <span class="sz">18.2 MB</span>
+      </div>
+      <div class="row file">
+        <svg viewBox="0 0 24 24"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/></svg>
+        invoices-march.pdf <span class="sz">1.1 MB</span>
+      </div>
+      <div class="row file">
+        <svg viewBox="0 0 24 24"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/></svg>
+        hero-exploration.png <span class="sz">6.4 MB</span>
+      </div>
+      <div class="row folder">
+        <svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+        Invoices <span class="sz">4 items</span>
+      </div>
+      <div class="row file">
+        <svg viewBox="0 0 24 24"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/></svg>
+        Design-review-v4.pdf <span class="sz">2.8 MB</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="dock">
+    <button class="dock-btn primary" id="btnPlay" title="Watch the gesture play out">
+      <svg viewBox="0 0 24 24"><path d="M8 5l11 7-11 7z" fill="currentColor" stroke="none"/></svg>
+      Play
+    </button>
+    <button class="dock-btn" id="btnCompose" title="Open the composer">
+      <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" stroke-linecap="round"/></svg>
+      Compose
+    </button>
+    <div class="dock-sep"></div>
+    <button class="dock-btn" id="btnPermission" title="Trigger a permission card">
+      <svg viewBox="0 0 24 24"><path d="M12 3l8 4v5c0 4.5-3.2 7.5-8 9-4.8-1.5-8-4.5-8-9V7z"/><path d="M9 12l2 2 4-4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Permission
+    </button>
+    <button class="dock-btn" id="btnMusic" title="Toggle music">
+      <svg viewBox="0 0 24 24"><path d="M9 18V6l10-2v12" stroke-linecap="round"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="16.5" cy="16" r="2.5"/></svg>
+      Music
+    </button>
+    <button class="dock-btn" id="btnReset" title="Reset the demo">
+      <svg viewBox="0 0 24 24"><path d="M4 4v6h6" stroke-linecap="round"/><path d="M4.5 10a8 8 0 1 1 .5 6" stroke-linecap="round"/></svg>
+      Reset
+    </button>
+  </div>
+
+  <div class="try" id="tryCard">
+    <div class="try-head">
+      <span class="try-title">Try the notch</span>
+      <button class="try-x" id="tryClose" aria-label="Dismiss">×</button>
+    </div>
+    <div class="step"><span class="num">1</span><span>Hold <kbd>⌥</kbd> and <b>drag</b> anywhere on the desktop.</span></div>
+    <div class="step"><span class="num">2</span><span>Write a thought in the <b>glass card</b>; press <kbd>↵</kbd>.</span></div>
+    <div class="step"><span class="num">3</span><span>Keep working. IVE only interrupts to ask.</span></div>
+    <div class="try-foot">Or click the notch to open the panel. Music, clock and settings live there. Everything is simulated in this preview.</div>
+  </div>
+
+  <div class="footnote"><b>IVE</b> — concept demo<br />Electron + Swift · macOS</div>
+  <div class="toast" id="toast"></div>
+  <div class="keys-hint" id="keysHint">⌥ held — drag to open the glass composer</div>
+
+  <iframe id="notchFrame" title="IVE notch"></iframe>
+  <iframe id="overlayFrame" title="IVE composer"></iframe>
+
+<script>
+const NOTCH_HTML = __NOTCH_JSON__;
+const OVERLAY_HTML = __OVERLAY_JSON__;
+
+const notchFrame = document.getElementById('notchFrame');
+const overlayFrame = document.getElementById('overlayFrame');
+const toastEl = document.getElementById('toast');
+const keysHint = document.getElementById('keysHint');
+
+let overlayLoaded = false;
+let panelOpen = false;
+let optHeld = false;
+let overlayPhase = 'idle';
+let autoAnswerTimer = null;
+let autoAnswerArmed = false;
+let lastPointer = { x: 0, y: 0 };
+
+const send = (win, msg) => { try { win.contentWindow.postMessage({ __ive: true, src: 'parent', ...msg }, '*'); } catch (_) {} };
+
+function toast(text) {
+  toastEl.textContent = String(text).slice(0, 120);
+  toastEl.classList.add('show');
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => toastEl.classList.remove('show'), 2400);
+}
+
+function overlayOn(on) {
+  overlayFrame.classList.toggle('on', on);
+  overlayFrame.style.pointerEvents = on ? 'auto' : 'none';
+}
+
+function updateNotchHit(e) {
+  const w = window.innerWidth;
+  const nearTop = e.clientY < 78 && Math.abs(e.clientX - w / 2) < 175;
+  const insidePanel = panelOpen && Math.abs(e.clientX - w / 2) < 232 && e.clientY < 640;
+  notchFrame.style.pointerEvents = (nearTop || insidePanel) ? 'auto' : 'none';
+}
+
+window.addEventListener('mousemove', (e) => {
+  lastPointer = { x: e.clientX, y: e.clientY };
+  updateNotchHit(e);
+});
+
+window.addEventListener('message', (e) => {
+  const m = e.data;
+  if (!m || !m.__ive) return;
+  if (m.src === 'notch') {
+    if (m.type === 'ready') toast('Notch ready — click it');
+    if (m.type === 'hook') {
+      if (m.event === 'panel-open') { panelOpen = true; updateNotchHit(lastPointer); }
+      if (m.event === 'panel-close') { panelOpen = false; updateNotchHit(lastPointer); }
+    }
+    if (m.type === 'open-composer') {
+      overlayOn(true);
+      send(overlayFrame, { type: 'open-composer', x: window.innerWidth / 2, y: window.innerHeight * 0.4 });
+      keysHint.classList.remove('show');
+    }
+    if (m.type === 'toast') toast(m.text);
+    if (m.type === 'ask-created' && autoAnswerArmed) {
+      clearTimeout(autoAnswerTimer);
+      autoAnswerTimer = setTimeout(() => {
+        if (autoAnswerArmed) {
+          send(notchFrame, { type: 'respond', id: m.id, optionId: 'allow' });
+          toast('Auto-answering: allow once');
+          autoAnswerArmed = false;
+        }
+      }, 6500);
+    }
+    if (m.type === 'ask-resolved') {
+      clearTimeout(autoAnswerTimer);
+      autoAnswerArmed = false;
+    }
+  }
+  if (m.src === 'overlay') {
+    if (m.type === 'overlay-state') {
+      overlayPhase = m.phase;
+      if (m.phase === 'armed' || m.phase === 'compose' || m.phase === 'sending') overlayOn(true);
+      if (m.phase === 'idle' && !optHeld) setTimeout(() => { if (!optHeld) overlayOn(false); }, 80);
+    }
+    if (m.type === 'submit') {
+      overlayOn(true);
+      send(notchFrame, { type: 'external-submit', text: m.text });
+      toast('Sent quietly to IVE');
+      autoAnswerArmed = true;
+    }
+    if (m.type === 'cancel') {
+      if (!optHeld) setTimeout(() => overlayOn(false), 240);
+    }
+  }
+});
+
+overlayFrame.addEventListener('load', () => { overlayLoaded = true; });
+
+/* Option = fn, in the browser */
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'Alt' && !optHeld) {
+    optHeld = true;
+    overlayOn(true);
+    keysHint.classList.add('show');
+    e.preventDefault();
+  }
+});
+window.addEventListener('keyup', (e) => {
+  if (e.key === 'Alt') {
+    optHeld = false;
+    keysHint.classList.remove('show');
+    if (overlayPhase === 'idle' || overlayPhase === 'armed') overlayOn(false);
+  }
+});
+window.addEventListener('blur', () => {
+  optHeld = false;
+  keysHint.classList.remove('show');
+  if (overlayPhase === 'idle') overlayOn(false);
+});
+
+/* Clicking the desktop shuts the panel */
+window.addEventListener('mousedown', (e) => {
+  if (panelOpen && !e.target.closest('#notchFrame')) {
+    send(notchFrame, { type: 'close-panel' });
+  }
+});
+
+/* ── dock ─────────────────────────────────────────────────── */
+document.getElementById('btnCompose').addEventListener('click', () => {
+  overlayOn(true);
+  send(overlayFrame, { type: 'open-composer', x: window.innerWidth / 2, y: window.innerHeight * 0.38 });
+  document.getElementById('tryCard').classList.add('hidden');
+});
+document.getElementById('btnPermission').addEventListener('click', () => {
+  send(notchFrame, { type: 'trigger-permission' });
+  toast('Asking the notch for a decision');
+});
+document.getElementById('btnMusic').addEventListener('click', () => {
+  send(notchFrame, { type: 'music-toggle' });
+});
+document.getElementById('btnReset').addEventListener('click', () => {
+  send(notchFrame, { type: 'reset-demo' });
+  send(notchFrame, { type: 'close-panel' });
+  overlayOn(false);
+  autoAnswerArmed = false;
+  clearTimeout(autoAnswerTimer);
+  toast('Demo reset');
+});
+document.getElementById('tryClose').addEventListener('click', () => {
+  document.getElementById('tryCard').classList.add('hidden');
+});
+
+/* ── the gesture, played for you ──────────────────────────── */
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+async function playGesture() {
+  if (!overlayLoaded) return;
+  document.getElementById('tryCard').classList.add('hidden');
+  overlayOn(true);
+  await sleep(160);
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+  const sx = Math.max(120, w * 0.28);
+  const sy = Math.max(180, h * 0.36);
+  const ex = Math.min(w - 140, w * 0.63);
+  const ey = Math.min(h - 160, h * 0.58);
+  send(overlayFrame, { type: 'demo-select', x: sx, y: sy });
+  const steps = 30;
+  for (let i = 1; i <= steps; i++) {
+    const t = i / steps;
+    const ease = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+    send(overlayFrame, { type: 'demo-move', x: sx + (ex - sx) * ease, y: sy + (ey - sy) * ease });
+    await sleep(16);
+  }
+  send(overlayFrame, { type: 'demo-end', x: ex, y: ey });
+  await sleep(650);
+  send(overlayFrame, { type: 'demo-autosend', text: 'Tidy my Downloads and group the Q3 decks together.' });
+  toast('Writing with you — then it sends itself');
+}
+
+document.getElementById('btnPlay').addEventListener('click', playGesture);
+
+/* ── boot ─────────────────────────────────────────────────── */
+notchFrame.srcdoc = NOTCH_HTML;
+overlayFrame.srcdoc = OVERLAY_HTML;
+
+function tickClock() {
+  const d = new Date();
+  document.getElementById('mbClock').textContent = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  document.getElementById('mbDate').textContent = d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+}
+tickClock();
+setInterval(tickClock, 1000);
+</script>
+</body>
+</html>

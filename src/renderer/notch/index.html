@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'" />
+<title>IVE</title>
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<div id="stage">
+  <div class="island" id="island" data-hit>
+    <div class="body">
+      <div class="aurora"></div>
+      <div class="grain"></div>
+      <div class="sheen"></div>
+      <div class="rim"></div>
+      <div class="blob b1"></div>
+      <div class="blob b2"></div>
+
+      <!-- ── collapsed pill ─────────────────────────────────────────── -->
+      <div class="pill" id="pill" data-hit>
+        <div class="p-left">
+          <span class="glyph" id="glyph">
+            <span class="dot"></span>
+            <span class="bars"><i></i><i></i><i></i></span>
+          </span>
+          <span class="pill-label" id="pillLabel">quiet</span>
+        </div>
+        <div class="p-center">
+          <span class="clock" id="clock">--:--</span>
+        </div>
+        <div class="p-right">
+          <div class="eq" id="eq" aria-label="Now playing"><i></i><i></i><i></i><i></i></div>
+          <div class="hover-ctl" id="hoverCtl">
+            <button class="icon-btn sm" data-music="previous" aria-label="Previous track">
+              <svg viewBox="0 0 24 24"><path d="M7 5v14M19 5l-9 7 9 7z"/></svg>
+            </button>
+            <button class="icon-btn sm" data-music="playpause" id="pillPlay" aria-label="Play or pause">
+              <svg viewBox="0 0 24 24" class="i-play"><path d="M8 5l11 7-11 7z"/></svg>
+              <svg viewBox="0 0 24 24" class="i-pause"><path d="M8 5v14M16 5v14"/></svg>
+            </button>
+            <button class="icon-btn sm" data-music="next" aria-label="Next track">
+              <svg viewBox="0 0 24 24"><path d="M17 5v14M5 5l9 7-9 7z"/></svg>
+            </button>
+          </div>
+          <span class="pending-dot" id="pendingDot" hidden></span>
+        </div>
+      </div>
+
+      <!-- ── expanded panel ─────────────────────────────────────────── -->
+      <div class="panel" id="panel" data-hit>
+        <header class="p-head">
+          <div class="brand">
+            <span class="brand-mark">
+              <svg viewBox="0 0 24 24"><path d="M12 3v18M5.5 8.5v7M18.5 8.5v7" stroke-linecap="round"/></svg>
+            </span>
+            <div class="brand-text">
+              <div class="brand-name">IVE</div>
+              <div class="brand-status" id="brandStatus">quiet · listening</div>
+            </div>
+          </div>
+          <div class="p-actions">
+            <button class="ghost-btn" id="btnCompose">
+              <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" stroke-linecap="round"/></svg>
+              Compose
+            </button>
+            <button class="icon-btn" id="btnClose" aria-label="Close">
+              <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" stroke-linecap="round"/></svg>
+            </button>
+          </div>
+        </header>
+
+        <nav class="tabs" id="tabs">
+          <button class="tab-btn active" data-tab="assistant">Assistant</button>
+          <button class="tab-btn" data-tab="music">Music</button>
+          <button class="tab-btn" data-tab="settings">Settings</button>
+          <span class="tab-ink" id="tabInk"></span>
+        </nav>
+
+        <div class="tab-body">
+          <!-- assistant -->
+          <section class="tab-pane active" id="pane-assistant">
+            <div class="ask-inline" id="askInline" hidden></div>
+            <div class="log" id="log">
+              <div class="empty" id="logEmpty">
+                <div class="empty-orb"><span></span><span></span><span></span></div>
+                <p>I work from the notch.</p>
+                <p class="muted">Hold <kbd>fn</kbd> and right-drag anywhere on your screen to open the glass composer. Say what you need, press <kbd>↵</kbd>, and get back to work.</p>
+              </div>
+            </div>
+            <form class="composer" id="panelComposer">
+              <input id="panelInput" placeholder="Ask IVE anything…" autocomplete="off" spellcheck="false" />
+              <button class="send" type="submit" id="panelSend" aria-label="Send">
+                <svg viewBox="0 0 24 24"><path d="M5 12h13M13 6l6 6-6 6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </button>
+            </form>
+            <div class="foot-hint"><span>fn + right-drag</span><i></i><span>⌘⇧Space composer</span><i></i><span>enter sends</span></div>
+          </section>
+
+          <!-- music -->
+          <section class="tab-pane" id="pane-music">
+            <div class="music-hero">
+              <div class="art" id="art">
+                <div class="art-shine"></div>
+                <div class="art-grain"></div>
+                <svg class="art-mark" viewBox="0 0 24 24"><path d="M9 18V6l10-2v12" stroke-linecap="round"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="16.5" cy="16" r="2.5"/></svg>
+              </div>
+              <div class="track">
+                <div class="track-title" id="trackTitle">Nothing playing</div>
+                <div class="track-artist" id="trackArtist">Ask IVE to put something on.</div>
+                <div class="track-source" id="trackSource"></div>
+              </div>
+            </div>
+            <div class="scrub" id="scrub">
+              <div class="scrub-track"><div class="scrub-fill" id="scrubFill"></div><div class="scrub-knob" id="scrubKnob"></div></div>
+              <div class="scrub-times"><span id="tNow">0:00</span><span id="tDur">0:00</span></div>
+            </div>
+            <div class="music-ctl">
+              <button class="round-btn" data-music="previous" aria-label="Previous">
+                <svg viewBox="0 0 24 24"><path d="M7 5v14M19 5l-9 7 9 7z" stroke-linejoin="round"/></svg>
+              </button>
+              <button class="round-btn big" data-music="playpause" id="bigPlay" aria-label="Play or pause">
+                <svg viewBox="0 0 24 24" class="i-play"><path d="M8 5l11 7-11 7z" stroke-linejoin="round"/></svg>
+                <svg viewBox="0 0 24 24" class="i-pause"><path d="M8 5v14M16 5v14" stroke-linecap="round"/></svg>
+              </button>
+              <button class="round-btn" data-music="next" aria-label="Next">
+                <svg viewBox="0 0 24 24"><path d="M17 5v14M5 5l9 7-9 7z" stroke-linejoin="round"/></svg>
+              </button>
+            </div>
+            <div class="queue" id="queue"></div>
+            <button class="text-btn" id="openMusic">Open the Music app</button>
+          </section>
+
+          <!-- settings -->
+          <section class="tab-pane" id="pane-settings">
+            <div class="settings-scroll">
+              <div class="onboard" id="onboard" hidden>
+                <div class="onboard-title">Welcome to IVE</div>
+                <p>Three things and you're set. Everything lives in this notch.</p>
+                <ol>
+                  <li><b>Add a model key</b> below — OpenAI, Anthropic, or a local Ollama.</li>
+                  <li><b>Enable permissions</b> so the fn gesture and tools can work.</li>
+                  <li><b>Hold fn + right-drag</b> anywhere, type, press enter. Go back to work.</li>
+                </ol>
+                <button class="primary-btn" id="btnOnboardDone">I'm set</button>
+              </div>
+
+              <div class="section-label first">Model</div>
+              <div class="seg" id="providerSeg">
+                <button data-provider="openai" class="active">OpenAI</button>
+                <button data-provider="anthropic">Anthropic</button>
+                <button data-provider="ollama">Ollama</button>
+              </div>
+              <div class="grid2">
+                <label class="field"><span>Model</span><input id="setModel" autocomplete="off" spellcheck="false" /></label>
+                <label class="field"><span>Base URL <em>optional</em></span><input id="setBaseUrl" placeholder="default" autocomplete="off" spellcheck="false" /></label>
+              </div>
+              <label class="field">
+                <span>API key</span>
+                <div class="key-row">
+                  <input id="setKey" type="password" placeholder="sk-…" autocomplete="off" />
+                  <button class="ghost-btn" id="btnTest">Save &amp; test</button>
+                </div>
+                <small id="testStatus"></small>
+              </label>
+
+              <div class="section-label">Autonomy</div>
+              <div class="switch-row"><div><b>Edit files without asking</b><small>Writes stay fenced to your home folder.</small></div><button class="switch on" data-toggle="autoApprove.writes" role="switch"></button></div>
+              <div class="switch-row"><div><b>Control apps without asking</b><small>AppleScript, keystrokes, clicks, clipboard.</small></div><button class="switch on" data-toggle="autoApprove.automation" role="switch"></button></div>
+              <div class="switch-row"><div><b>Run shell commands without asking</b><small>Risky by nature. Denylisted commands are blocked either way.</small></div><button class="switch" data-toggle="autoApprove.shell" role="switch"></button></div>
+              <div class="switch-row"><div><b>Stay silent</b><small>Results land in the notch log instead of popping up.</small></div><button class="switch on" data-toggle="silent" role="switch"></button></div>
+              <div class="switch-row"><div><b>Sound cues</b><small>A soft tick when IVE needs you.</small></div><button class="switch" data-toggle="sound" role="switch"></button></div>
+              <div class="switch-row"><div><b>Launch at login</b><small>The notch is always there when you wake up.</small></div><button class="switch" data-toggle="launchAtLogin" role="switch"></button></div>
+
+              <div class="section-label">Permissions</div>
+              <div class="perm-row">
+                <div><b>Accessibility</b><small>fn gesture, keystrokes, clicks</small></div>
+                <span class="perm-state" id="stateAx">—</span>
+                <button class="ghost-btn xs" data-perm="accessibility">Open</button>
+              </div>
+              <div class="perm-row">
+                <div><b>Input Monitoring</b><small>observe the fn key</small></div>
+                <span class="perm-state" id="stateInput">—</span>
+                <button class="ghost-btn xs" data-perm="input">Open</button>
+              </div>
+              <div class="perm-row">
+                <div><b>Screen Recording</b><small>glass captures + screenshots</small></div>
+                <span class="perm-state" id="stateScreen">—</span>
+                <button class="ghost-btn xs" data-perm="screen">Open</button>
+              </div>
+              <div class="perm-row">
+                <div><b>fn helper</b><small id="helperReason">starting…</small></div>
+                <span class="perm-state" id="stateHelper">—</span>
+              </div>
+
+              <div class="section-label">Conversation</div>
+              <div class="danger-row">
+                <button class="text-btn" id="btnReset">Reset conversation</button>
+                <button class="text-btn" id="btnClearLog">Clear log</button>
+              </div>
+
+              <div class="section-label">About</div>
+              <div class="about">
+                <b>IVE</b> 0.1.0 — a quiet notch assistant.<br />
+                <a href="#" data-link="https://github.com/ive-app/ive">GitHub</a> ·
+                <a href="#" data-link="https://github.com/ive-app/ive/issues">Report an issue</a>
+              </div>
+              <div class="danger-row">
+                <button class="text-btn danger" id="btnQuit">Quit IVE</button>
+              </div>
+              <div class="pad"></div>
+            </div>
+          </section>
+        </div>
+      </div>
+
+      <!-- ── alert / permission card ─────────────────────────────────── -->
+      <div class="alert" id="alertWrap" data-hit>
+        <div class="alert-head">
+          <div class="alert-icon" id="alertIcon">
+            <span class="ring"></span>
+            <svg viewBox="0 0 24 24"><path d="M12 7v6M12 17h.01" stroke-linecap="round"/></svg>
+          </div>
+          <div class="alert-titles">
+            <div class="alert-title" id="alertTitle">IVE needs you</div>
+            <div class="alert-meta" id="alertMeta">permission</div>
+          </div>
+          <button class="icon-btn alert-x" id="alertDismiss" aria-label="Dismiss">
+            <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" stroke-linecap="round"/></svg>
+          </button>
+        </div>
+        <div class="alert-body" id="alertBody"></div>
+        <div class="alert-detail" id="alertDetail"></div>
+        <div class="alert-btns" id="alertBtns"></div>
+        <div class="alert-more" id="alertMore" hidden></div>
+      </div>
+
+      <div class="toast" id="toast"></div>
+    </div>
+  </div>
+</div>
+<script src="app.js"></script>
+</body>
+</html>

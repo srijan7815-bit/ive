@@ -1,0 +1,11 @@
+node_modules/
+release/
+dist/
+native/fn-listener/.build/
+*.log
+.DS_Store
+.env
+*.icns
+.design/
+demo/frames/
+demo/out/

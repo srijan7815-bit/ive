@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'" />
+<title>IVE composer</title>
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<div id="stage">
+  <div class="dim" id="dim"></div>
+  <svg class="wire" id="wire" aria-hidden="true">
+    <defs>
+      <linearGradient id="wireGrad" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#9ef2cf" stop-opacity=".0" />
+        <stop offset=".35" stop-color="#9ef2cf" stop-opacity=".55" />
+        <stop offset="1" stop-color="#8fb4ff" stop-opacity=".05" />
+      </linearGradient>
+    </defs>
+    <path id="wirePath" d="" fill="none" stroke="url(#wireGrad)" stroke-width="1.25" stroke-linecap="round" />
+  </svg>
+
+  <div class="trail" id="trail">
+    <span class="drop d1"></span>
+    <span class="drop d2"></span>
+    <span class="drop d3"></span>
+  </div>
+
+  <div class="card" id="card">
+    <div class="glass">
+      <div class="glass-img" id="glassImg"></div>
+      <div class="tint"></div>
+      <div class="aurora"></div>
+      <div class="noise"></div>
+      <div class="caustic"></div>
+      <div class="rim"></div>
+      <div class="sheen" id="sheen"></div>
+    </div>
+
+    <div class="select-hud" id="selectHud">
+      <div class="corner tl"></div>
+      <div class="corner tr"></div>
+      <div class="corner bl"></div>
+      <div class="corner br"></div>
+      <div class="dims" id="dims">drag to open</div>
+    </div>
+
+    <div class="compose" id="compose">
+      <header class="head">
+        <span class="orb" id="orb"><i></i></span>
+        <div class="head-text">
+          <span class="title">IVE</span>
+          <span class="sub" id="sub">write it down · I'll take it from here</span>
+        </div>
+        <button class="x" id="btnX" aria-label="Cancel">
+          <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" stroke-linecap="round"/></svg>
+        </button>
+      </header>
+      <textarea id="input" rows="2" placeholder="What should I take care of?" spellcheck="false"></textarea>
+      <footer class="foot">
+        <div class="chips" id="chips">
+          <button class="chip" data-chip="Summarize what's on my screen right now.">Screen</button>
+          <button class="chip" data-chip="Clean up my Downloads folder — group files and tell me what you moved.">Clean up</button>
+          <button class="chip" data-chip="What should I focus on next? Look at my current windows.">Focus</button>
+        </div>
+        <div class="send-wrap">
+          <span class="hint"><kbd>↵</kbd> send · <kbd>esc</kbd> close</span>
+          <button class="send" id="send" aria-label="Send to IVE">
+            <svg viewBox="0 0 24 24"><path d="M5 12h13M13 6l6 6-6 6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+        </div>
+      </footer>
+    </div>
+
+    <div class="ripe" id="ripe">
+      <span class="pulse"></span>
+      <div class="done-text">Sent quietly.<span>IVE is working in the background.</span></div>
+    </div>
+  </div>
+</div>
+<script src="app.js"></script>
+</body>
+</html>

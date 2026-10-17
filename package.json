@@ -1,0 +1,104 @@
+{
+  "name": "ive",
+  "productName": "IVE",
+  "version": "0.1.0",
+  "description": "IVE \u2014 a living notch for macOS. Hold fn, drag, think out loud. The AI works while you do.",
+  "main": "src/main/main.js",
+  "author": "IVE",
+  "license": "MIT",
+  "homepage": "https://github.com/ive-app/ive",
+  "keywords": [
+    "macos",
+    "notch",
+    "ai",
+    "electron",
+    "assistant",
+    "liquid-glass"
+  ],
+  "scripts": {
+    "start": "electron .",
+    "dev": "IVE_DEV=1 electron .",
+    "demo": "IVE_DEMO=1 electron .",
+    "test": "node test/run.js",
+    "icons": "python3 scripts/make-icons.py",
+    "build:fn": "bash scripts/build-fn-listener.sh",
+    "demo:build": "node scripts/build-demo.mjs",
+    "demo:frames": "node scripts/screenshot.mjs",
+    "dist": "npm run build:fn && electron-builder --mac",
+    "dist:dir": "npm run build:fn && electron-builder --mac --dir",
+    "release": "npm run build:fn && electron-builder --mac --publish always"
+  },
+  "dependencies": {
+    "electron-store": "^8.2.0"
+  },
+  "devDependencies": {
+    "electron": "^31.7.7",
+    "electron-builder": "^24.13.3",
+    "sharp": "^0.33.5",
+    "gifencoder": "^2.0.1",
+    "pngjs": "^7.0.0",
+    "playwright": "^1.47.2"
+  },
+  "build": {
+    "appId": "ai.ive.app",
+    "productName": "IVE",
+    "artifactName": "IVE-${version}-${arch}.${ext}",
+    "directories": {
+      "buildResources": "build",
+      "output": "release"
+    },
+    "files": [
+      "src/**/*",
+      "assets/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "native/fn-listener/.build",
+        "to": "bin",
+        "filter": [
+          "fn-listener"
+        ]
+      }
+    ],
+    "mac": {
+      "category": "public.app-category.productivity",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
+      ],
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist",
+      "extendInfo": {
+        "NSAppleEventsUsageDescription": "IVE uses Apple events to let your assistant control apps on this Mac when you ask it to.",
+        "NSScreenCaptureUsageDescription": "IVE can capture your screen so the assistant can see it when you ask.",
+        "NSMicrophoneUsageDescription": "IVE can listen for voice commands."
+      }
+    },
+    "dmg": {
+      "background": null,
+      "iconSize": 100
+    }
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ive-app/ive.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ive-app/ive/issues"
+  }
+}
