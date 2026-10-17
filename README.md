@@ -59,7 +59,14 @@ The demo embeds the **actual renderer source** of the app, with a mock of the ma
 | --- | --- |
 | Windows 10/11 | `IVE-<version>-win-x64.exe` — per-user installer, no admin |
 | Android 10+ | `IVE-<version>-android.apk` — sideload, or the `.aab` for Play |
-| macOS 13+ | `IVE-<version>-mac-<arch>.dmg` — built by `ci/release.yml` on a tag |
+| macOS 13+ | `IVE-<version>-mac-arm64.zip` / `-mac-x64.zip` — unzip, drag to Applications, right-click → Open the first time |
+
+The macOS zips in this release are **unsigned preview builds**: they run the app
+fully (overlay, composer, tools, music, clock) but Gatekeeper needs one
+right-click to allow them, and the `fn` gesture falls back to `⌘⇧Space` because
+the Swift helper has to be compiled with Xcode on a Mac. Run `ci/release.yml`
+on a tag to get a signed, notarized `.dmg` with the gesture — see
+[docs/RELEASING.md](docs/RELEASING.md).
 
 ## Run from source
 

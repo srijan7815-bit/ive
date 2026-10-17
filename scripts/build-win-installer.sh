@@ -6,7 +6,8 @@
 # `native/win/installer.nsi` compiles the same installer directly and needs
 # nothing but makensis — which electron-builder already downloaded.
 #
-#   npm run dist:win:dir      # → release/win-unpacked
+#   npm run dist:win:dir      # → release/win-unpacked (signAndEditExecutable off:
+#                             #    rcedit also needs Wine, and the bundle is fine without it)
 #   npm run dist:win:nsis     # → release/IVE-<version>-win-x64.exe
 #
 set -euo pipefail

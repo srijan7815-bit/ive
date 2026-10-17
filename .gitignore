@@ -19,3 +19,6 @@ android/app/build/
 android/local.properties
 android/*.keystore
 android/keystore.properties
+
+# scratch
+shot-tmp.mjs
