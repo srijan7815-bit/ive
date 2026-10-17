@@ -2,7 +2,7 @@
   "name": "ive",
   "productName": "IVE",
   "version": "1.0.0",
-  "description": "IVE \u2014 a living notch for macOS and Windows. Hold fn (or Ctrl+Alt), drag, think out loud; the AI works while you keep working.",
+  "description": "IVE \u2014 a living notch for macOS, Windows and Android. Hold fn (or Ctrl+Alt), drag, think out loud; the AI works while you keep working.",
   "main": "src/main/main.js",
   "author": "IVE",
   "license": "MIT",
@@ -13,7 +13,11 @@
     "ai",
     "electron",
     "assistant",
-    "liquid-glass"
+    "liquid-glass",
+    "windows",
+    "android",
+    "productivity",
+    "automation"
   ],
   "scripts": {
     "start": "electron .",

@@ -38,11 +38,6 @@ permissions:
 
 env:
   NODE_VERSION: "20"
-  # electron-builder reads GH_TOKEN for --publish always
-  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  # Unset signing secrets must not break the build: electron-builder skips
-  # signing when CSC_LINK is absent, and ad-hoc signs on macOS.
-  CSC_IDENTITY_AUTO_DISCOVERY: ${{ secrets.CSC_LINK != '' }}
 
 jobs:
   # ------------------------------------------------------------------ macOS
@@ -50,6 +45,8 @@ jobs:
     name: macOS (dmg + zip, arm64 + x64)
     runs-on: macos-14
     timeout-minutes: 40
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v4
 
@@ -75,8 +72,11 @@ jobs:
       - name: Package + publish to the draft release
         run: npx electron-builder --mac --publish always
         env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          # No certificate configured → skip discovery instead of failing.
+          CSC_IDENTITY_AUTO_DISCOVERY: ${{ secrets.CSC_LINK != '' }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
@@ -95,6 +95,8 @@ jobs:
     name: Windows (NSIS + zip, x64 + arm64)
     runs-on: windows-latest
     timeout-minutes: 40
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v4
 
@@ -113,6 +115,7 @@ jobs:
         shell: pwsh
         run: npx electron-builder --win --publish always
         env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
 
