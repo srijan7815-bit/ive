@@ -27,10 +27,29 @@ If you prefer to do it by hand: `version` in `package.json`,
 
 ```bash
 npm ci
-npm run dist:mac            # → release/IVE-1.0.0-mac-arm64.dmg (+ zip)
-npm run dist:win            # only on Windows (NSIS + Authenticode)
+npm run dist:mac            # → release/IVE-1.0.0-mac-arm64.dmg (+ zip), macOS only
+npm run dist:win            # Windows host: NSIS + Authenticode
+npm run dist:win:nsis       # any host with makensis, no Wine (see below)
 cd android && ./gradlew assembleRelease bundleRelease
 ```
+
+### Building the Windows installer on Linux or macOS
+
+`electron-builder --win nsis` shells out to Wine to stamp its uninstaller, which
+is why the plain `dist:win` script is Windows-only. IVE ships its own
+`native/win/installer.nsi`, so the installer can be compiled straight from the
+app directory:
+
+```bash
+npm run dist:win:dir        # electron-builder packages release/win-unpacked
+npm run dist:win:nsis       # makensis (bundled with electron-builder) → .exe
+```
+
+No Wine, no Windows, no admin: the result is a per-user NSIS installer with a
+Start-menu shortcut, an Add/Remove Programs entry and a working uninstaller.
+The trade-off is that `IVE.exe` keeps Electron's stock icon and version
+resource, because stamping those needs `rcedit` under Wine. Build on Windows
+when you want the icon and Authenticode signature.
 
 Unsigned builds are fine for testing. They will show Gatekeeper / SmartScreen
 warnings on other people's machines — sign before you distribute.

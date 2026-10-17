@@ -32,6 +32,8 @@
     "dist": "npm run dist:mac",
     "dist:mac": "npm run build:fn && electron-builder --mac",
     "dist:win": "electron-builder --win",
+    "dist:win:dir": "electron-builder --win --dir --x64",
+    "dist:win:nsis": "npm run dist:win:dir && bash scripts/build-win-installer.sh",
     "dist:dir": "npm run build:fn && electron-builder --mac --dir",
     "release:mac": "npm run build:fn && electron-builder --mac --publish always",
     "release:win": "electron-builder --win --publish always",

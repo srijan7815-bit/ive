@@ -51,12 +51,22 @@ The demo embeds the **actual renderer source** of the app, with a mock of the ma
 
 ---
 
-## Install & run
+## Install
 
-**Requirements:** macOS 13+, Node 20+, Xcode Command Line Tools (`xcode-select --install`).
+**[Latest release →](https://github.com/srijan7815-bit/ive/releases/latest)**
+
+| Platform | Asset |
+| --- | --- |
+| Windows 10/11 | `IVE-<version>-win-x64.exe` — per-user installer, no admin |
+| Android 10+ | `IVE-<version>-android.apk` — sideload, or the `.aab` for Play |
+| macOS 13+ | `IVE-<version>-mac-<arch>.dmg` — built by `ci/release.yml` on a tag |
+
+## Run from source
+
+**Requirements:** Node 20+; for the `fn` helper, macOS + Xcode Command Line Tools (`xcode-select --install`).
 
 ```bash
-git clone srijan7815-bit/ive ive && cd ive
+git clone https://github.com/srijan7815-bit/ive.git && cd ive
 npm install
 npm run icons          # generates icon.png / trayTemplate.png
 npm run build:fn       # compiles the Swift fn-listener helper
@@ -71,7 +81,7 @@ On first launch:
 
 The `fn` helper is optional: without it, `⌘⇧Space` opens the composer at your cursor.
 
-> Packages: `npm run dist:mac` builds a `.dmg` + `.zip` (arm64 + x64), `npm run dist:win` builds the NSIS installers, and `cd android && ./gradlew assembleRelease` builds the APK. CI does all three on every tag — see **[docs/RELEASING.md](docs/RELEASING.md)**.
+> Packages: `npm run dist:mac` → `.dmg` + `.zip` (arm64 + x64); `npm run dist:win:nsis` → NSIS installer (works on Linux/macOS too — no Wine); `cd android && ./gradlew assembleRelease` → APK + AAB. CI builds all three on a tag — see **[docs/RELEASING.md](docs/RELEASING.md)**.
 
 ---
 

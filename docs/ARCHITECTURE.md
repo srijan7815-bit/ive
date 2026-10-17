@@ -184,7 +184,7 @@ src/preload/       index.js            (the only bridge into the renderers)
 src/renderer/notch  index.html · styles.css · app.js
 src/renderer/overlay index.html · styles.css · app.js
 native/fn-listener  main.swift          (macOS gesture tap)
-native/win/        gesture-hook.ps1      (Windows gesture hook)
+native/win/        gesture-hook.ps1 · installer.nsi (Windows gesture hook + installer)
 android/           Kotlin + Compose app: overlay, agent, tools, media
 demo/              template.html · mock-*.js → demo/index.html (built)
 scripts/           build-demo.mjs · screenshot.mjs · make-icons.py
