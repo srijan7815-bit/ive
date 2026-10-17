@@ -6,7 +6,7 @@
 
 **A living notch for macOS.** Hold `fn`, drag, think out loud — the AI works in the background while you keep working.
 
-[![Demo](https://img.shields.io/badge/live_demo-demo%2Findex.html-9ef2cf)](demo/index.html)
+[![Live demo](https://img.shields.io/badge/live_demo-srijan7815--bit.github.io%2Five-9ef2cf)](https://srijan7815-bit.github.io/ive/)
 [![Platform](https://img.shields.io/badge/platform-macOS%2013%2B-black)]()
 [![Built with](https://img.shields.io/badge/Electron-Swift-8fb4ff)]()
 [![License](https://img.shields.io/badge/license-MIT-black)](LICENSE)
@@ -41,9 +41,7 @@ Everything runs locally on your Mac. Your API key is stored encrypted with the O
 
 The full interface is included as a **single-file, offline, interactive demo** — no install, no keys, nothing simulated in the cloud:
 
-```
-open demo/index.html
-```
+**[Try it live →](https://srijan7815-bit.github.io/ive/)** — or open `demo/index.html` from the repo, fully offline.
 
 - Hold **⌥ (Option)** — the browser's stand-in for `fn` — and drag anywhere on the desktop to draw the glass composer.
 - Click the notch to open the panel (Assistant / Music / Settings).
@@ -58,7 +56,7 @@ The demo embeds the **actual renderer source** of the app, with a mock of the ma
 **Requirements:** macOS 13+, Node 20+, Xcode Command Line Tools (`xcode-select --install`).
 
 ```bash
-git clone <your-fork> ive && cd ive
+git clone srijan7815-bit/ive ive && cd ive
 npm install
 npm run icons          # generates icon.png / trayTemplate.png
 npm run build:fn       # compiles the Swift fn-listener helper

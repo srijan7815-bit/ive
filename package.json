@@ -6,7 +6,7 @@
   "main": "src/main/main.js",
   "author": "IVE",
   "license": "MIT",
-  "homepage": "https://github.com/ive-app/ive",
+  "homepage": "https://srijan7815-bit.github.io/ive/",
   "keywords": [
     "macos",
     "notch",
@@ -97,9 +97,9 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/ive-app/ive.git"
+    "url": "https://github.com/srijan7815-bit/ive.git"
   },
   "bugs": {
-    "url": "https://github.com/ive-app/ive/issues"
+    "url": "https://github.com/srijan7815-bit/ive/issues"
   }
 }

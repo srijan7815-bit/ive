@@ -46,7 +46,11 @@ if (page.includes('__NOTCH_JSON__') || page.includes('__OVERLAY_JSON__')) {
 fs.mkdirSync(path.join(root, 'demo'), { recursive: true });
 fs.writeFileSync(path.join(root, 'demo/index.html'), page);
 
+// GitHub Pages copy (Settings → Pages → main /docs)
+fs.mkdirSync(path.join(root, 'docs'), { recursive: true });
+fs.writeFileSync(path.join(root, 'docs/index.html'), page);
+
 const kb = (n) => `${(n / 1024).toFixed(1)} KB`;
-console.log(`✅ demo/index.html written — ${kb(Buffer.byteLength(page))}`);
+console.log(`✅ demo/index.html + docs/index.html written — ${kb(Buffer.byteLength(page))}`);
 console.log(`   notch iframe:   ${kb(Buffer.byteLength(notch))}`);
 console.log(`   overlay iframe: ${kb(Buffer.byteLength(overlay))}`);
